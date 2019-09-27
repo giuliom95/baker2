@@ -1,0 +1,8 @@
+.vscode
+bin
+Makefile
+
+# QT related rubbish
+*.stash
+*.o
+moc*
