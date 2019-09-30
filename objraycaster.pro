@@ -2,7 +2,9 @@ TEMPLATE = app
 TARGET = bin/objviz
 QT += widgets
 
-HEADERS +=	src/mainwindow.hpp
+HEADERS +=	src/mainWindow.hpp \
+			src/canvasWidget.hpp
 
 SOURCES +=	src/main.cpp \
-			src/mainwindow.cpp
+			src/mainWindow.cpp \
+			src/canvasWidget.cpp 

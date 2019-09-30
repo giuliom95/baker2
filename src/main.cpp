@@ -1,6 +1,7 @@
 #include <tiny_obj_loader.h>
 
 #include <QtWidgets>
+
 #include "mainWindow.hpp"
 
 int main(int argc, char** argv) {
