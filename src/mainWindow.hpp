@@ -8,8 +8,10 @@ class MainWindow : public QWidget {
 public:
 	explicit MainWindow(QImage& image);
 
+	void setImage(QImage& image);
+
 private:
-	QImage& buffer;
+	QLabel* imageContainer;
 };
 
 #endif

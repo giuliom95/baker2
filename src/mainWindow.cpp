@@ -2,15 +2,15 @@
 #include "mainWindow.hpp"
 
 MainWindow::MainWindow(QImage& image) : 
-	QWidget(), buffer{image} {
+	QWidget() {
 	resize(800,800);
 	setWindowTitle("TEST");
 
 	auto* layout = new QHBoxLayout();
 	layout->setContentsMargins(0,0,0,0);
 
-	QLabel* imageContainer = new QLabel();
-	imageContainer->setPixmap(QPixmap::fromImage(buffer));
+	imageContainer = new QLabel();
+	setImage(image);
 
 	QScrollArea* scrollArea = new QScrollArea();
 	scrollArea->setBackgroundRole(QPalette::Dark);
@@ -18,4 +18,8 @@ MainWindow::MainWindow(QImage& image) :
 	
 	layout->addWidget(scrollArea);
 	setLayout(layout);
+}
+
+void MainWindow::setImage(QImage& image) {
+	imageContainer->setPixmap(QPixmap::fromImage(image));
 }
