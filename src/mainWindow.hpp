@@ -6,7 +6,10 @@
 class MainWindow : public QWidget {
 	Q_OBJECT
 public:
-	explicit MainWindow();
+	explicit MainWindow(QImage& image);
+
+private:
+	QImage& buffer;
 };
 
 #endif
