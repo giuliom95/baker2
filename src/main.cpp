@@ -11,21 +11,9 @@
 
 #include "mainWindow.hpp"
 
+#include "math.hpp"
+
 #define VERBOSE 1
-
-using Vec3f = std::array<float, 3>;
-Vec3f normalized(float x, float y, float z) {
-	const float l = std::sqrt(x*x + y*y + z*z);
-	return {x / l, y /l, z / l};
-}
-
-using Vec2f = std::array<float, 2>;
-
-
-std::ostream& operator<<(std::ostream& s, const Vec3f& v) {
-	s << "(" << v[0] << ", " << v[1] << ", " << v[2] << ")";
-	return s;
-}
 
 void loadObj(		std::string						inputfile, 
 					tinyobj::attrib_t&				attrib,
@@ -41,7 +29,9 @@ void setupEmbree(	RTCDevice&						dev,
 					std::vector<uint>&				triangles);
 
 void raycast(		QImage&							out, 
-					const RTCScene&					scene, 
+					const RTCScene&					embree_scene,
+					const tinyobj::attrib_t&		geometry,
+					const tinyobj::mesh_t&			topology,
 					const Vec3f&					bbox_min, 
 					const Vec3f&					bbox_max);
 
@@ -49,7 +39,7 @@ int main(int argc, char** argv) {
 	QApplication app(argc, argv);
 
 	// load gui
-	QImage buffer{1024, 1024, QImage::Format_RGB888};
+	QImage buffer{2048, 2048, QImage::Format_RGB888};
 	auto* bufferData = buffer.bits();
 	for(int i = 0; i < buffer.width(); ++i)
 		for(int j = 0; j < buffer.height(); ++j) {
@@ -64,7 +54,7 @@ int main(int argc, char** argv) {
 	// load obj
 	tinyobj::attrib_t attrib;
 	std::vector<tinyobj::shape_t> shapes;
-	loadObj("in/head.obj", attrib, shapes);
+	loadObj("in/head2.obj", attrib, shapes);
 
 	// Data convert from tinyobjloader to embree
 	int noIndices = shapes[0].mesh.indices.size();
@@ -82,7 +72,7 @@ int main(int argc, char** argv) {
 	bbox(attrib.vertices, bbox_min, bbox_max);
 
 	// cast
-	raycast(buffer, embree_scene, bbox_min, bbox_max);
+	raycast(buffer, embree_scene, attrib, shapes[0].mesh, bbox_min, bbox_max);
 
 	win.setImage(buffer);
 
@@ -182,10 +172,12 @@ void bbox(const std::vector<float>& vertices, Vec3f& min, Vec3f& max) {
 	}
 }
 
-void raycast(	QImage&			out, 
-				const RTCScene&	scene, 
-				const Vec3f&	bbox_min, 
-				const Vec3f&	bbox_max) {
+void raycast(	QImage&						out, 
+				const RTCScene&				embree_scene,
+				const tinyobj::attrib_t&	geometry,
+				const tinyobj::mesh_t&		topology,
+				const Vec3f&				bbox_min, 
+				const Vec3f&				bbox_max) {
 
 	const float scene_dx = bbox_max[0] - bbox_min[0];
 	const float scene_dy = bbox_max[1] - bbox_min[1];
@@ -222,15 +214,33 @@ void raycast(	QImage&			out,
 
 			rayhit.hit.geomID = RTC_INVALID_GEOMETRY_ID;
 
-			rtcIntersect1(scene, &context, &rayhit);
+			rtcIntersect1(embree_scene, &context, &rayhit);
 
 			out_data[3*(i + j*out_w) + 0] = 0;
 			out_data[3*(i + j*out_w) + 1] = 0;
 			out_data[3*(i + j*out_w) + 2] = 0;
 
 			if(rayhit.hit.geomID != RTC_INVALID_GEOMETRY_ID) {
-				
-				Vec3f n = normalized(rayhit.hit.Ng_x, rayhit.hit.Ng_y, rayhit.hit.Ng_z);
+				const uint id = rayhit.hit.primID;
+				const float a1 = rayhit.hit.u;
+				const float a2 = rayhit.hit.v;
+				const float a0 = 1 - a1 - a2;
+
+				const int n0_idx = topology.indices[id*3 + 0].normal_index;
+				const int n1_idx = topology.indices[id*3 + 1].normal_index;
+				const int n2_idx = topology.indices[id*3 + 2].normal_index;
+				const Vec3f n0{	geometry.normals[n0_idx*3 + 0],
+								geometry.normals[n0_idx*3 + 1],
+								geometry.normals[n0_idx*3 + 2]};
+				const Vec3f n1{	geometry.normals[n1_idx*3 + 0],
+								geometry.normals[n1_idx*3 + 1],
+								geometry.normals[n1_idx*3 + 2]};
+				const Vec3f n2{	geometry.normals[n2_idx*3 + 0],
+								geometry.normals[n2_idx*3 + 1],
+								geometry.normals[n2_idx*3 + 2]};
+
+				const Vec3f n = a0*n0 + a1*n1 + a2*n2;
+
 				out_data[3*(i + j*out_w) + 0] = 255 * 0.5 * (n[0] + 1);
 				out_data[3*(i + j*out_w) + 1] = 255 * 0.5 * (n[1] + 1);
 				out_data[3*(i + j*out_w) + 2] = 255 * 0.5 * (n[2] + 1);
