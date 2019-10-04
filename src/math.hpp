@@ -14,9 +14,10 @@ inline const float min(const float a, const float b) {return a < b ? a : b;}
 
 //////// VECTOR ////////
 
+using Vec2i = std::array<int, 2>;
 using Vec2f = std::array<float, 2>;
 using Vec3i = std::array<int, 3>;
-using Vec3f = std::array<float, 3>; 
+using Vec3f = std::array<float, 3>;
 
 inline const Vec2f operator*	(const float f,  const Vec2f& v) { return {f*v[0], f*v[1]}; }
 inline const Vec2f operator+	(const Vec2f& a, const Vec2f& b) { return {a[0]+b[0], a[1]+b[1]}; }
@@ -94,6 +95,35 @@ inline const Mat4 transpose (const Mat4& m) {
 				m[3], m[7], m[11], m[15]};
 }
 
+class Mat2 {
+	std::array<float, 4> data;
+public:
+	Mat2() : data {1,0, 0,1} {}
+
+	Mat2(	float a, float b,
+			float c, float d)
+			: data{ a, b, c, d} {}
+
+	const 	float& operator[](int idx) const { return data[idx]; }
+
+	const	Mat2 operator*	(const float f) {
+		return {f*data[0], f*data[1], f*data[2], f*data[3]}; 
+	}
+
+};
+
+inline const float det(const Mat2& m) {
+	return m[0]*m[3] - m[1]*m[2];
+}
+
+inline const Mat2 inv(const Mat2& m) {
+	return Mat2(m[3],-m[1], -m[2],m[0]) * (1 / det(m));
+}
+
+inline const Vec2f operator*(const Mat2& m, const Vec2f& v) {
+	return {m[0]*v[0] + m[1]*v[1],
+			m[2]*v[0] + m[3]*v[1]};
+} 
 
 //////// TRIANGLE ////////
 

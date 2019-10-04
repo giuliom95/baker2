@@ -194,3 +194,80 @@ void Core::releaseEmbree() {
 	rtcReleaseScene(hi_embree_scene);
 	rtcReleaseDevice(hi_embree_device);
 }
+
+void Core::splatTriangles() {
+	
+	const auto w = texture.width();
+	const auto h = texture.height();
+	uchar* tex = texture.bits();
+
+	// For each triangle
+	const auto trinum = low_shape.mesh.indices.size() / 3;
+	for (int t = 0; t < trinum; ++t) {
+		const int idx0 = low_shape.mesh.indices[t*3 + 0].texcoord_index;
+		const int idx1 = low_shape.mesh.indices[t*3 + 1].texcoord_index;
+		const int idx2 = low_shape.mesh.indices[t*3 + 2].texcoord_index;
+		const Vec2f uv0{	low_attrib.texcoords[idx0*2 + 0],
+							low_attrib.texcoords[idx0*2 + 1]};
+		const Vec2f uv1{	low_attrib.texcoords[idx1*2 + 0],
+							low_attrib.texcoords[idx1*2 + 1]};
+		const Vec2f uv2{	low_attrib.texcoords[idx2*2 + 0],
+							low_attrib.texcoords[idx2*2 + 1]};
+		
+		const Vec2i uv0i{w * uv0[0], h * uv0[1]};
+		const Vec2i uv1i{w * uv1[0], h * uv1[1]};
+		const Vec2i uv2i{w * uv2[0], h * uv2[1]};
+
+		const Vec2f v01 = uv1 - uv0;
+		const Vec2f v02 = uv2 - uv0;
+		// Compute matrix
+		const Mat2 mat = inv({	v01[0], v02[0],
+								v01[1], v02[1]});
+		
+		Vec2i min, max;
+
+		min = uv0i;
+		if(uv1i[0] < min[0]) min[0] = uv1i[0];
+		if(uv1i[1] < min[1]) min[1] = uv1i[1];
+		if(uv2i[0] < min[0]) min[0] = uv2i[0];
+		if(uv2i[1] < min[1]) min[1] = uv2i[1];
+
+		max = uv0i;
+		if(uv1i[0] > max[0]) max[0] = uv1i[0];
+		if(uv1i[1] > max[1]) max[1] = uv1i[1];
+		if(uv2i[0] > max[0]) max[0] = uv2i[0];
+		if(uv2i[1] > max[1]) max[1] = uv2i[1];
+
+		int i = min[0];
+		int j = min[1];
+
+		// Iterate
+		while(1) {
+			// Check if current point is inside
+			const Vec2f uv = {	(float)i / w,
+								(float)j / h};
+			const Vec2f uvt = mat * (uv - uv0);
+
+			const float c = 1 - uvt[0] - uvt[1];
+			const bool inside = uvt[0]	>= 0 && uvt[0]	< 1 &&
+								uvt[1]	>= 0 && uvt[1]	< 1 &&
+								c		>= 0 && c		< 1;
+
+			if(inside) {
+				// Color texture
+				tex[3*(i + j*w) + 0] = 255 * uvt[0];
+				tex[3*(i + j*w) + 1] = 255 * uvt[1];
+				tex[3*(i + j*w) + 2] = 0;
+			}
+
+			// Update i and j
+			++i;
+			if(i > max[0]) {
+				i = min[0];
+				++j;
+				if(j > max[1]) break;
+			}
+		}
+	}
+	
+}

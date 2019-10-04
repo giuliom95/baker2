@@ -14,6 +14,7 @@ public:
 
 public slots:
 	void loadHighObj();
+	void loadLowObj();
 
 private:
 	QLabel*			texturePreview;

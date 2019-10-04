@@ -37,7 +37,8 @@ MainWindow::MainWindow() :	QWidget(),
 	mainLayout->addWidget(scrollArea);
 	setLayout(mainLayout);
 
-	connect(highPolyLoadBtn, SIGNAL (clicked()), this, SLOT(loadHighObj()));
+	connect(highPolyLoadBtn,	SIGNAL (clicked()), this, SLOT(loadHighObj()));
+	connect(lowPolyLoadBtn,		SIGNAL (clicked()), this, SLOT(loadLowObj()));
 }
 
 void MainWindow::setImage(QImage& image) {
@@ -58,4 +59,20 @@ void MainWindow::loadHighObj() {
 	setImage(core.texture);
 
 	highPolyFileLabel->setText(filepath);
+}
+
+
+void MainWindow::loadLowObj() {
+	const auto filepath = QFileDialog::getOpenFileName(this, "Open low poly OBJ", "./", "*.obj");
+
+	lowPolyFileLabel->setText("Loading...");
+	lowPolyFileLabel->repaint();
+
+	core.loadLowObj(filepath.toUtf8().constData());
+
+	core.splatTriangles();
+	std::cout << "DONE" << std::endl;
+	setImage(core.texture);
+
+	lowPolyFileLabel->setText(filepath);
 }

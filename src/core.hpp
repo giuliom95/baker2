@@ -30,6 +30,8 @@ public:
 
 	void raycast();
 
+	void splatTriangles();
+
 	QImage texture;
 
 private:

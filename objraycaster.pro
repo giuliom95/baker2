@@ -2,9 +2,13 @@ TEMPLATE = app
 TARGET = bin/objviz
 QT += widgets
 
-HEADERS +=	src/mainWindow.hpp 
+HEADERS +=	src/core.hpp \
+			src/mainWindow.hpp \
+			src/math.hpp
 
-SOURCES +=	src/main.cpp \
-			src/mainWindow.cpp
+SOURCES +=	src/core.cpp \
+			src/mainWindow.cpp \
+			src/main.cpp
+			
 
 LIBS += -ltinyobjloader -lembree3
