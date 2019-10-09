@@ -204,51 +204,20 @@ void Core::generateNormalMap() {
 
 	// Since every pixel is written multiple and variable times we keep the occurence
 	std::vector<int> pix_count(w*h, 0);
+
 	std::vector<float> tmp_tex(w*h*3, 0);
 
 	// For each triangle
 	const auto trinum = low_shape.mesh.indices.size() / 3;
-	for (int t = 0; t < trinum; ++t) {
-		const int vidx0 = low_shape.mesh.indices[t*3 + 0].vertex_index;
-		const int vidx1 = low_shape.mesh.indices[t*3 + 1].vertex_index;
-		const int vidx2 = low_shape.mesh.indices[t*3 + 2].vertex_index;
-		const int nidx0 = low_shape.mesh.indices[t*3 + 0].normal_index;
-		const int nidx1 = low_shape.mesh.indices[t*3 + 1].normal_index;
-		const int nidx2 = low_shape.mesh.indices[t*3 + 2].normal_index;
-		const int idx0 = low_shape.mesh.indices[t*3 + 0].texcoord_index;
-		const int idx1 = low_shape.mesh.indices[t*3 + 1].texcoord_index;
-		const int idx2 = low_shape.mesh.indices[t*3 + 2].texcoord_index;
-		const Vec3f p0 {	low_attrib.vertices[3*vidx0 + 0],
-							low_attrib.vertices[3*vidx0 + 1],
-							low_attrib.vertices[3*vidx0 + 2]};
-		const Vec3f p1 {	low_attrib.vertices[3*vidx1 + 0],
-							low_attrib.vertices[3*vidx1 + 1],
-							low_attrib.vertices[3*vidx1 + 2]};
-		const Vec3f p2 {	low_attrib.vertices[3*vidx2 + 0],
-							low_attrib.vertices[3*vidx2 + 1],
-							low_attrib.vertices[3*vidx2 + 2]};
-		const Vec3f n0 {	low_attrib.normals[3*nidx0 + 0],
-							low_attrib.normals[3*nidx0 + 1],
-							low_attrib.normals[3*nidx0 + 2]};
-		const Vec3f n1 {	low_attrib.normals[3*nidx1 + 0],
-							low_attrib.normals[3*nidx1 + 1],
-							low_attrib.normals[3*nidx1 + 2]};
-		const Vec3f n2 {	low_attrib.normals[3*nidx2 + 0],
-							low_attrib.normals[3*nidx2 + 1],
-							low_attrib.normals[3*nidx2 + 2]};
-		const Vec2f uv0{	low_attrib.texcoords[idx0*2 + 0],
-							low_attrib.texcoords[idx0*2 + 1]};
-		const Vec2f uv1{	low_attrib.texcoords[idx1*2 + 0],
-							low_attrib.texcoords[idx1*2 + 1]};
-		const Vec2f uv2{	low_attrib.texcoords[idx2*2 + 0],
-							low_attrib.texcoords[idx2*2 + 1]};
+	for (int ti = 0; ti < trinum; ++ti) {
+		const Triangle t = Triangle::fromIndex(ti, low_shape, low_attrib);
 		
-		const Vec2i uv0i{w * uv0[0], h * uv0[1]};
-		const Vec2i uv1i{w * uv1[0], h * uv1[1]};
-		const Vec2i uv2i{w * uv2[0], h * uv2[1]};
+		const Vec2i uv0i{w * t.uv0[0], h * t.uv0[1]};
+		const Vec2i uv1i{w * t.uv1[0], h * t.uv1[1]};
+		const Vec2i uv2i{w * t.uv2[0], h * t.uv2[1]};
 
-		const Vec2f v01 = uv1 - uv0;
-		const Vec2f v02 = uv2 - uv0;
+		const Vec2f v01 = t.uv1 - t.uv0;
+		const Vec2f v02 = t.uv2 - t.uv0;
 		// Compute matrix
 		const Mat2 mat = inv({	v01[0], v02[0],
 								v01[1], v02[1]});
@@ -276,7 +245,7 @@ void Core::generateNormalMap() {
 						// Check if current point is inside
 						const Vec2f uv = {	(i + ((float)us / 4)) / w,
 											(j + ((float)vs / 4)) / h};
-						const Vec2f uvt = mat * (uv - uv0);
+						const Vec2f uvt = mat * (uv - t.uv0);
 
 						const float ct = 1 - uvt[0] - uvt[1];
 						const bool inside = uvt[0]	>= 0 && uvt[0]	< 1 &&
@@ -285,14 +254,15 @@ void Core::generateNormalMap() {
 
 						if(inside) {
 							
-							const Vec3f pos = ct*p0 + uvt[0]*p1 + uvt[1]*p2;
-							const Vec3f dir = ct*n0 + uvt[0]*n1 + uvt[1]*n2;
+							const Vec3f pos = ct*t.p0 + uvt[0]*t.p1 + uvt[1]*t.p2;
+							const Vec3f dir = ct*t.n0 + uvt[0]*t.n1 + uvt[1]*t.n2;
 
 							const Vec3f n = shootRay(pos, dir);
 
 							const bool noInters = (n[0] + n[1] + n[2]) == 0;
 
 							if(!noInters) {
+
 								// Color texture
 								tmp_tex[3*(i + j*w) + 0] += .5 * n[0] + .5;
 								tmp_tex[3*(i + j*w) + 1] += .5 * n[1] + .5;
@@ -320,6 +290,48 @@ void Core::generateNormalMap() {
 	}
 	
 }
+
+Triangle Triangle::fromIndex(	const int ti,
+								const tinyobj::shape_t& shape,
+								const tinyobj::attrib_t& att) {
+
+	const int vidx0 =	shape.mesh.indices[ti*3 + 0].vertex_index;
+	const int vidx1 =	shape.mesh.indices[ti*3 + 1].vertex_index;
+	const int vidx2 =	shape.mesh.indices[ti*3 + 2].vertex_index;
+	const int nidx0 =	shape.mesh.indices[ti*3 + 0].normal_index;
+	const int nidx1 =	shape.mesh.indices[ti*3 + 1].normal_index;
+	const int nidx2 =	shape.mesh.indices[ti*3 + 2].normal_index;
+	const int idx0 =	shape.mesh.indices[ti*3 + 0].texcoord_index;
+	const int idx1 =	shape.mesh.indices[ti*3 + 1].texcoord_index;
+	const int idx2 =	shape.mesh.indices[ti*3 + 2].texcoord_index;
+	return {
+		{att.vertices[3*vidx0 + 0],
+		 att.vertices[3*vidx0 + 1],
+		 att.vertices[3*vidx0 + 2]},
+		{att.vertices[3*vidx1 + 0],
+		 att.vertices[3*vidx1 + 1],
+		 att.vertices[3*vidx1 + 2]},
+		{att.vertices[3*vidx2 + 0],
+		 att.vertices[3*vidx2 + 1],
+		 att.vertices[3*vidx2 + 2]},
+		{att.normals[3*nidx0 + 0],
+		 att.normals[3*nidx0 + 1],
+		 att.normals[3*nidx0 + 2]},
+		{att.normals[3*nidx1 + 0],
+		 att.normals[3*nidx1 + 1],
+		 att.normals[3*nidx1 + 2]},
+		{att.normals[3*nidx2 + 0],
+		 att.normals[3*nidx2 + 1],
+		 att.normals[3*nidx2 + 2]},
+		{att.texcoords[idx0*2 + 0],
+		 att.texcoords[idx0*2 + 1]},
+		{att.texcoords[idx1*2 + 0],
+		 att.texcoords[idx1*2 + 1]},
+		{att.texcoords[idx2*2 + 0],
+		 att.texcoords[idx2*2 + 1]}
+	};
+};
+
 
 Vec3f Core::shootRay(const Vec3f& pos, const Vec3f& dir) {
 	RTCRayHit rayhit;

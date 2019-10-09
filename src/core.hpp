@@ -19,6 +19,17 @@
 
 #include "math.hpp"
 
+class Triangle {
+public:
+	static Triangle fromIndex(	const int ti,
+								const tinyobj::shape_t& shape,
+								const tinyobj::attrib_t& att);
+
+	const Vec3f p0,		p1,		p2;
+	const Vec3f n0,		n1,		n2;
+	const Vec2f uv0,	uv1,	uv2;
+};
+
 // TODO: Make indipendent from QImage
 class Core {
 public:
@@ -36,6 +47,7 @@ public:
 	QImage texture;
 
 private:
+
 	tinyobj::attrib_t	low_attrib;
 	tinyobj::shape_t	low_shape;
 
@@ -49,11 +61,11 @@ private:
 	void setupEmbree();
 	void releaseEmbree();
 
-	Vec3f shootRay(const Vec3f& pos, const Vec3f& dir);
+	Vec3f shootRay		(const Vec3f& pos,	const Vec3f& dir);
 
-	static void loadObj(		std::string						inputfile, 
-					tinyobj::attrib_t&				attrib,
-					std::vector<tinyobj::shape_t>&	shapes);
+	static void loadObj(std::string						inputfile, 
+						tinyobj::attrib_t&				attrib,
+						std::vector<tinyobj::shape_t>&	shapes);
 
 	// TODO: Remove later
 	static void bbox(	const std::vector<float>&	vertices,
