@@ -28,9 +28,10 @@ public:
 	void loadLowObj	(std::string filename);
 	void loadHighObj(std::string filename);
 
+	// TODO remove
 	void raycast();
 
-	void splatTriangles();
+	void generateNormalMap();
 
 	QImage texture;
 
@@ -43,9 +44,12 @@ private:
 
 	RTCScene			hi_embree_scene;
 	RTCDevice			hi_embree_device;
+	RTCIntersectContext hi_embree_context;
 
 	void setupEmbree();
 	void releaseEmbree();
+
+	Vec3f shootRay(const Vec3f& pos, const Vec3f& dir);
 
 	static void loadObj(		std::string						inputfile, 
 					tinyobj::attrib_t&				attrib,
@@ -55,7 +59,6 @@ private:
 	static void bbox(	const std::vector<float>&	vertices,
 						Vec3f&						min,
 						Vec3f&						max);
-
 };
 
 #endif

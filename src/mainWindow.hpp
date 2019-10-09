@@ -15,6 +15,7 @@ public:
 public slots:
 	void loadHighObj();
 	void loadLowObj();
+	void startBaking();
 
 private:
 	QLabel*			texturePreview;
@@ -22,6 +23,7 @@ private:
 	QPushButton*	highPolyLoadBtn;
 	QLineEdit*		lowPolyFileLabel;
 	QLineEdit*		highPolyFileLabel;
+	QPushButton*	startBakingBtn;
 
 	Core core;
 };

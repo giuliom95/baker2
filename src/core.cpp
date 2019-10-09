@@ -84,6 +84,7 @@ void Core::setupEmbree() {
 	rtcReleaseGeometry(geom);
 	rtcCommitScene(hi_embree_scene);
 
+	rtcInitIntersectContext(&hi_embree_context);
 }
 
 void Core::bbox(const std::vector<float>& vertices, Vec3f& min, Vec3f& max) {
@@ -195,18 +196,46 @@ void Core::releaseEmbree() {
 	rtcReleaseDevice(hi_embree_device);
 }
 
-void Core::splatTriangles() {
+void Core::generateNormalMap() {
 	
 	const auto w = texture.width();
 	const auto h = texture.height();
 	uchar* tex = texture.bits();
 
+	// Since every pixel is written multiple and variable times we keep the occurence
+	std::vector<int> pix_count(w*h, 0);
+	std::vector<float> tmp_tex(w*h*3, 0);
+
 	// For each triangle
 	const auto trinum = low_shape.mesh.indices.size() / 3;
 	for (int t = 0; t < trinum; ++t) {
+		const int vidx0 = low_shape.mesh.indices[t*3 + 0].vertex_index;
+		const int vidx1 = low_shape.mesh.indices[t*3 + 1].vertex_index;
+		const int vidx2 = low_shape.mesh.indices[t*3 + 2].vertex_index;
+		const int nidx0 = low_shape.mesh.indices[t*3 + 0].normal_index;
+		const int nidx1 = low_shape.mesh.indices[t*3 + 1].normal_index;
+		const int nidx2 = low_shape.mesh.indices[t*3 + 2].normal_index;
 		const int idx0 = low_shape.mesh.indices[t*3 + 0].texcoord_index;
 		const int idx1 = low_shape.mesh.indices[t*3 + 1].texcoord_index;
 		const int idx2 = low_shape.mesh.indices[t*3 + 2].texcoord_index;
+		const Vec3f p0 {	low_attrib.vertices[3*vidx0 + 0],
+							low_attrib.vertices[3*vidx0 + 1],
+							low_attrib.vertices[3*vidx0 + 2]};
+		const Vec3f p1 {	low_attrib.vertices[3*vidx1 + 0],
+							low_attrib.vertices[3*vidx1 + 1],
+							low_attrib.vertices[3*vidx1 + 2]};
+		const Vec3f p2 {	low_attrib.vertices[3*vidx2 + 0],
+							low_attrib.vertices[3*vidx2 + 1],
+							low_attrib.vertices[3*vidx2 + 2]};
+		const Vec3f n0 {	low_attrib.normals[3*nidx0 + 0],
+							low_attrib.normals[3*nidx0 + 1],
+							low_attrib.normals[3*nidx0 + 2]};
+		const Vec3f n1 {	low_attrib.normals[3*nidx1 + 0],
+							low_attrib.normals[3*nidx1 + 1],
+							low_attrib.normals[3*nidx1 + 2]};
+		const Vec3f n2 {	low_attrib.normals[3*nidx2 + 0],
+							low_attrib.normals[3*nidx2 + 1],
+							low_attrib.normals[3*nidx2 + 2]};
 		const Vec2f uv0{	low_attrib.texcoords[idx0*2 + 0],
 							low_attrib.texcoords[idx0*2 + 1]};
 		const Vec2f uv1{	low_attrib.texcoords[idx1*2 + 0],
@@ -238,36 +267,108 @@ void Core::splatTriangles() {
 		if(uv2i[0] > max[0]) max[0] = uv2i[0];
 		if(uv2i[1] > max[1]) max[1] = uv2i[1];
 
-		int i = min[0];
-		int j = min[1];
+		// Iterate over texels
+		for(int j = min[1]; j <= max[1]; ++j) {
+			for(int i = min[0]; i <= max[0]; ++i) {
 
-		// Iterate
-		while(1) {
-			// Check if current point is inside
-			const Vec2f uv = {	(float)i / w,
-								(float)j / h};
-			const Vec2f uvt = mat * (uv - uv0);
+				for(int us = -1; us <= 1; ++us) {
+					for(int vs = -1; vs <= 1; ++vs) {
+						// Check if current point is inside
+						const Vec2f uv = {	(i + ((float)us / 4)) / w,
+											(j + ((float)vs / 4)) / h};
+						const Vec2f uvt = mat * (uv - uv0);
 
-			const float c = 1 - uvt[0] - uvt[1];
-			const bool inside = uvt[0]	>= 0 && uvt[0]	< 1 &&
-								uvt[1]	>= 0 && uvt[1]	< 1 &&
-								c		>= 0 && c		< 1;
+						const float ct = 1 - uvt[0] - uvt[1];
+						const bool inside = uvt[0]	>= 0 && uvt[0]	< 1 &&
+											uvt[1]	>= 0 && uvt[1]	< 1 &&
+											ct		>= 0 && ct		< 1;
 
-			if(inside) {
-				// Color texture
-				tex[3*(i + j*w) + 0] = 255 * uvt[0];
-				tex[3*(i + j*w) + 1] = 255 * uvt[1];
-				tex[3*(i + j*w) + 2] = 0;
+						if(inside) {
+							
+							const Vec3f pos = ct*p0 + uvt[0]*p1 + uvt[1]*p2;
+							const Vec3f dir = ct*n0 + uvt[0]*n1 + uvt[1]*n2;
+
+							const Vec3f n = shootRay(pos, dir);
+
+							const bool noInters = (n[0] + n[1] + n[2]) == 0;
+
+							if(!noInters) {
+								// Color texture
+								tmp_tex[3*(i + j*w) + 0] += .5 * n[0] + .5;
+								tmp_tex[3*(i + j*w) + 1] += .5 * n[1] + .5;
+								tmp_tex[3*(i + j*w) + 2] += .5 * n[2] + .5;
+
+								pix_count[i + j*w] += 1;
+							}
+
+						}
+					}
+				}
 			}
+		}
+	}
 
-			// Update i and j
-			++i;
-			if(i > max[0]) {
-				i = min[0];
-				++j;
-				if(j > max[1]) break;
+	for(int j = 0; j < h; ++j) {
+		for(int i = 0; i < w; ++i) {
+			const int count = pix_count[i + j*w];
+			if(count > 0) {
+				tex[3*(i + j*w) + 0] = 255 * (tmp_tex[3*(i + j*w) + 0] / count);
+				tex[3*(i + j*w) + 1] = 255 * (tmp_tex[3*(i + j*w) + 1] / count);
+				tex[3*(i + j*w) + 2] = 255 * (tmp_tex[3*(i + j*w) + 2] / count);
 			}
 		}
 	}
 	
+}
+
+Vec3f Core::shootRay(const Vec3f& pos, const Vec3f& dir) {
+	RTCRayHit rayhit;
+
+	rayhit.ray.org_x = pos[0];
+	rayhit.ray.org_y = pos[1];
+	rayhit.ray.org_z = pos[2];
+	rayhit.ray.dir_x = dir[0];
+	rayhit.ray.dir_y = dir[1];
+	rayhit.ray.dir_z = dir[2];
+	rayhit.ray.flags = 0;
+	rayhit.ray.tnear = 0;
+	rayhit.ray.tfar = 1;
+	rayhit.hit.geomID = RTC_INVALID_GEOMETRY_ID;
+
+	rtcIntersect1(hi_embree_scene, &hi_embree_context, &rayhit);
+
+	if(rayhit.hit.geomID == RTC_INVALID_GEOMETRY_ID) {
+		rayhit.ray.dir_x = -dir[0];
+		rayhit.ray.dir_y = -dir[1];
+		rayhit.ray.dir_z = -dir[2];
+		rayhit.ray.flags = 0;
+		rayhit.ray.tnear = 0;
+		rayhit.ray.tfar = 1;
+		rayhit.hit.geomID = RTC_INVALID_GEOMETRY_ID;
+
+		rtcIntersect1(hi_embree_scene, &hi_embree_context, &rayhit);
+
+		// This should never happen
+		if(rayhit.hit.geomID == RTC_INVALID_GEOMETRY_ID) return {0,0,0};
+	}
+
+	const uint id = rayhit.hit.primID;
+	const float a1 = rayhit.hit.u;
+	const float a2 = rayhit.hit.v;
+	const float a0 = 1 - a1 - a2;
+
+	const int n0_idx = hi_shape.mesh.indices[id*3 + 0].normal_index;
+	const int n1_idx = hi_shape.mesh.indices[id*3 + 1].normal_index;
+	const int n2_idx = hi_shape.mesh.indices[id*3 + 2].normal_index;
+	const Vec3f n0{	hi_attrib.normals[n0_idx*3 + 0],
+					hi_attrib.normals[n0_idx*3 + 1],
+					hi_attrib.normals[n0_idx*3 + 2]};
+	const Vec3f n1{	hi_attrib.normals[n1_idx*3 + 0],
+					hi_attrib.normals[n1_idx*3 + 1],
+					hi_attrib.normals[n1_idx*3 + 2]};
+	const Vec3f n2{	hi_attrib.normals[n2_idx*3 + 0],
+					hi_attrib.normals[n2_idx*3 + 1],
+					hi_attrib.normals[n2_idx*3 + 2]};
+
+	return {a0*n0 + a1*n1 + a2*n2};
 }

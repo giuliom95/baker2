@@ -27,18 +27,23 @@ MainWindow::MainWindow() :	QWidget(),
 	loadPanelLayout->addWidget(highPolyFileLabel,	1, 1);
 	loadPanelLayout->addWidget(highPolyLoadBtn,		1, 2);
 
+	startBakingBtn = new QPushButton("Start baking");
+
 	texturePreview = new QLabel();
 	QImage tmpImg{1024,1024,QImage::Format_RGB888};
 	tmpImg.allGray();
 	setImage(tmpImg);
 	QScrollArea* scrollArea = new QScrollArea();
 	scrollArea->setWidget(texturePreview);
+
 	mainLayout->addLayout(loadPanelLayout);
+	mainLayout->addWidget(startBakingBtn);
 	mainLayout->addWidget(scrollArea);
 	setLayout(mainLayout);
 
 	connect(highPolyLoadBtn,	SIGNAL (clicked()), this, SLOT(loadHighObj()));
 	connect(lowPolyLoadBtn,		SIGNAL (clicked()), this, SLOT(loadLowObj()));
+	connect(startBakingBtn,		SIGNAL (clicked()), this, SLOT(startBaking()));
 }
 
 void MainWindow::setImage(QImage& image) {
@@ -54,7 +59,6 @@ void MainWindow::loadHighObj() {
 
 	core.loadHighObj(filepath.toUtf8().constData());
 
-	core.raycast();
 	std::cout << "DONE" << std::endl;
 	setImage(core.texture);
 
@@ -70,9 +74,18 @@ void MainWindow::loadLowObj() {
 
 	core.loadLowObj(filepath.toUtf8().constData());
 
-	core.splatTriangles();
 	std::cout << "DONE" << std::endl;
 	setImage(core.texture);
 
 	lowPolyFileLabel->setText(filepath);
+}
+
+void MainWindow::startBaking() {
+	startBakingBtn->setEnabled(false);
+	core.generateNormalMap();
+	setImage(core.texture);
+
+	startBakingBtn->setEnabled(true);
+
+	core.texture.save("out/test.tiff");
 }
