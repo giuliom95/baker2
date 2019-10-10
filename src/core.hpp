@@ -39,9 +39,6 @@ public:
 	void loadLowObj	(std::string filename);
 	void loadHighObj(std::string filename);
 
-	// TODO remove
-	void raycast();
-
 	void generateNormalMap();
 
 	QImage texture;
@@ -61,7 +58,13 @@ private:
 	void setupEmbree();
 	void releaseEmbree();
 
-	Vec3f shootRay		(const Vec3f& pos,	const Vec3f& dir);
+	bool shootRay(const Vec3f& pos, const Vec3f& dir, Vec3f& n);
+
+	Vec3f toTangSpace(	const Vec3f&	hi_n,
+						const Vec3f&	low_p, 
+						const Vec3f&	low_n,
+						const Vec2f&	uv,
+						const Triangle&	t);
 
 	static void loadObj(std::string						inputfile, 
 						tinyobj::attrib_t&				attrib,

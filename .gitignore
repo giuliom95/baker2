@@ -1,5 +1,7 @@
 .vscode
 bin
+in
+out
 Makefile
 
 # QT related rubbish

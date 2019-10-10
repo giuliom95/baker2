@@ -1,7 +1,9 @@
 #include "core.hpp"
 
 Core::Core() :
-	texture{2048, 2048, QImage::Format_RGB888} {
+	texture{2048, 2048, QImage::Format_RGB888},
+	hi_embree_scene{nullptr},
+	hi_embree_device{nullptr} {
 }
 
 Core::~Core() {
@@ -114,86 +116,10 @@ void Core::bbox(const std::vector<float>& vertices, Vec3f& min, Vec3f& max) {
 	}
 }
 
-void Core::raycast() {
-
-	const auto topology = hi_shape.mesh;
-	const auto geometry = hi_attrib;
-
-	Vec3f bbox_min, bbox_max;
-	bbox(hi_attrib.vertices, bbox_min, bbox_max);
-	const float scene_dx = bbox_max[0] - bbox_min[0];
-	const float scene_dy = bbox_max[1] - bbox_min[1];
-	const float scene_dz = bbox_max[2] - bbox_min[2];
-
-	// This data structure is needed by embree. It is never read in this code.
-	RTCIntersectContext context;
-	rtcInitIntersectContext(&context);
-
-	RTCRayHit rayhit;
-
-	// Orthographic camera on the z axis
-	rayhit.ray.dir_x = 0;
-	rayhit.ray.dir_y = 0;
-	rayhit.ray.dir_z = -1;
-	rayhit.ray.org_z = bbox_max[2];
-	
-	const uint& tex_w = texture.width();
-	const uint& tex_h = texture.height();
-	uchar* tex_bits = texture.bits();
-
-	for(uint i = 0; i < tex_w; ++i) {
-		for(uint j = 0; j < tex_h; ++j) {
-
-			// Map pixel into bbox XY surface
-			rayhit.ray.org_x = scene_dx * ((float)i / tex_w) + bbox_min[0];
-			rayhit.ray.org_y = scene_dy * ((float)j / tex_h) + bbox_min[1];
-
-			//std::cout << rayhit.ray.org_x << " " << rayhit.ray.org_y << std::endl;
-
-			rayhit.ray.flags = 0;
-			rayhit.ray.tnear = 0;
-			rayhit.ray.tfar = scene_dz;
-
-			rayhit.hit.geomID = RTC_INVALID_GEOMETRY_ID;
-
-			rtcIntersect1(hi_embree_scene, &context, &rayhit);
-
-			tex_bits[3*(i + j*tex_w) + 0] = 0;
-			tex_bits[3*(i + j*tex_w) + 1] = 0;
-			tex_bits[3*(i + j*tex_w) + 2] = 0;
-
-			if(rayhit.hit.geomID != RTC_INVALID_GEOMETRY_ID) {
-				const uint id = rayhit.hit.primID;
-				const float a1 = rayhit.hit.u;
-				const float a2 = rayhit.hit.v;
-				const float a0 = 1 - a1 - a2;
-
-				const int n0_idx = topology.indices[id*3 + 0].normal_index;
-				const int n1_idx = topology.indices[id*3 + 1].normal_index;
-				const int n2_idx = topology.indices[id*3 + 2].normal_index;
-				const Vec3f n0{	geometry.normals[n0_idx*3 + 0],
-								geometry.normals[n0_idx*3 + 1],
-								geometry.normals[n0_idx*3 + 2]};
-				const Vec3f n1{	geometry.normals[n1_idx*3 + 0],
-								geometry.normals[n1_idx*3 + 1],
-								geometry.normals[n1_idx*3 + 2]};
-				const Vec3f n2{	geometry.normals[n2_idx*3 + 0],
-								geometry.normals[n2_idx*3 + 1],
-								geometry.normals[n2_idx*3 + 2]};
-
-				const Vec3f n = a0*n0 + a1*n1 + a2*n2;
-
-				tex_bits[3*(i + j*tex_w) + 0] = 255 * 0.5 * (n[0] + 1);
-				tex_bits[3*(i + j*tex_w) + 1] = 255 * 0.5 * (n[1] + 1);
-				tex_bits[3*(i + j*tex_w) + 2] = 255 * 0.5 * (n[2] + 1);
-			};
-		}
-	}
-}
-
 void Core::releaseEmbree() {
-	rtcReleaseScene(hi_embree_scene);
-	rtcReleaseDevice(hi_embree_device);
+	std::cout << "Releasing Embree" << std::endl;
+	if(hi_embree_scene) rtcReleaseScene(hi_embree_scene);
+	if(hi_embree_device) rtcReleaseDevice(hi_embree_device);
 }
 
 void Core::generateNormalMap() {
@@ -257,16 +183,27 @@ void Core::generateNormalMap() {
 							const Vec3f pos = ct*t.p0 + uvt[0]*t.p1 + uvt[1]*t.p2;
 							const Vec3f dir = ct*t.n0 + uvt[0]*t.n1 + uvt[1]*t.n2;
 
-							const Vec3f n = shootRay(pos, dir);
+							Vec3f n;
+							Vec3f tn;	// Normal in tangent space.
+							bool hit{shootRay(pos, dir, n)};
 
-							const bool noInters = (n[0] + n[1] + n[2]) == 0;
+							bool wrong_way{true};
+							if(hit) {
+								tn = toTangSpace(n, pos, dir, uv, t);
+								wrong_way = dot(tn, {0,0,1}) < 0;
+							}
 
-							if(!noInters) {
+							if(wrong_way || !hit) {
+								hit = shootRay(pos, -1*dir, n);
+								tn = toTangSpace(n, pos, dir, uv, t);
+							}
+
+							if(hit) {
 
 								// Color texture
-								tmp_tex[3*(i + j*w) + 0] += .5 * n[0] + .5;
-								tmp_tex[3*(i + j*w) + 1] += .5 * n[1] + .5;
-								tmp_tex[3*(i + j*w) + 2] += .5 * n[2] + .5;
+								tmp_tex[3*(i + j*w) + 0] += .5 * tn[0] + .5;
+								tmp_tex[3*(i + j*w) + 1] += .5 * tn[1] + .5;
+								tmp_tex[3*(i + j*w) + 2] += .5 * tn[2] + .5;
 
 								pix_count[i + j*w] += 1;
 							}
@@ -281,11 +218,19 @@ void Core::generateNormalMap() {
 	for(int j = 0; j < h; ++j) {
 		for(int i = 0; i < w; ++i) {
 			const int count = pix_count[i + j*w];
+			uchar r, g, b;
 			if(count > 0) {
-				tex[3*(i + j*w) + 0] = 255 * (tmp_tex[3*(i + j*w) + 0] / count);
-				tex[3*(i + j*w) + 1] = 255 * (tmp_tex[3*(i + j*w) + 1] / count);
-				tex[3*(i + j*w) + 2] = 255 * (tmp_tex[3*(i + j*w) + 2] / count);
+				r = 255 * (tmp_tex[3*(i + j*w) + 0] / count);
+				g = 255 * (tmp_tex[3*(i + j*w) + 1] / count);
+				b = 255 * (tmp_tex[3*(i + j*w) + 2] / count);
+			} else {
+				r = 128;
+				g = 128;
+				b = 255;
 			}
+			tex[3*(i + (h - j - 1)*w) + 0] = r;
+			tex[3*(i + (h - j - 1)*w) + 1] = g;
+			tex[3*(i + (h - j - 1)*w) + 2] = b;
 		}
 	}
 	
@@ -333,7 +278,7 @@ Triangle Triangle::fromIndex(	const int ti,
 };
 
 
-Vec3f Core::shootRay(const Vec3f& pos, const Vec3f& dir) {
+bool Core::shootRay(const Vec3f& pos, const Vec3f& dir, Vec3f& n) {
 	RTCRayHit rayhit;
 
 	rayhit.ray.org_x = pos[0];
@@ -349,29 +294,14 @@ Vec3f Core::shootRay(const Vec3f& pos, const Vec3f& dir) {
 
 	rtcIntersect1(hi_embree_scene, &hi_embree_context, &rayhit);
 
-	if(rayhit.hit.geomID == RTC_INVALID_GEOMETRY_ID) {
-		rayhit.ray.dir_x = -dir[0];
-		rayhit.ray.dir_y = -dir[1];
-		rayhit.ray.dir_z = -dir[2];
-		rayhit.ray.flags = 0;
-		rayhit.ray.tnear = 0;
-		rayhit.ray.tfar = 1;
-		rayhit.hit.geomID = RTC_INVALID_GEOMETRY_ID;
+	const uint  id{rayhit.hit.primID};
+	const float a1{rayhit.hit.u};
+	const float a2{rayhit.hit.v};
+	const float a0{1 - a1 - a2};
 
-		rtcIntersect1(hi_embree_scene, &hi_embree_context, &rayhit);
-
-		// This should never happen
-		if(rayhit.hit.geomID == RTC_INVALID_GEOMETRY_ID) return {0,0,0};
-	}
-
-	const uint id = rayhit.hit.primID;
-	const float a1 = rayhit.hit.u;
-	const float a2 = rayhit.hit.v;
-	const float a0 = 1 - a1 - a2;
-
-	const int n0_idx = hi_shape.mesh.indices[id*3 + 0].normal_index;
-	const int n1_idx = hi_shape.mesh.indices[id*3 + 1].normal_index;
-	const int n2_idx = hi_shape.mesh.indices[id*3 + 2].normal_index;
+	const int n0_idx{hi_shape.mesh.indices[id*3 + 0].normal_index};
+	const int n1_idx{hi_shape.mesh.indices[id*3 + 1].normal_index};
+	const int n2_idx{hi_shape.mesh.indices[id*3 + 2].normal_index};
 	const Vec3f n0{	hi_attrib.normals[n0_idx*3 + 0],
 					hi_attrib.normals[n0_idx*3 + 1],
 					hi_attrib.normals[n0_idx*3 + 2]};
@@ -382,5 +312,31 @@ Vec3f Core::shootRay(const Vec3f& pos, const Vec3f& dir) {
 					hi_attrib.normals[n2_idx*3 + 1],
 					hi_attrib.normals[n2_idx*3 + 2]};
 
-	return {a0*n0 + a1*n1 + a2*n2};
+	n = {a0*n0 + a1*n1 + a2*n2};
+
+	return rayhit.hit.geomID != RTC_INVALID_GEOMETRY_ID; 
+}
+
+Vec3f Core::toTangSpace(const Vec3f&	hi_n,
+						const Vec3f&	low_p, 
+						const Vec3f&	low_n,
+						const Vec2f&	uv,
+						const Triangle&	t) {
+
+	// Get point on +u
+	const Vec2f new_uv	{uv[0] + 0.01, uv[1]};
+	const float t_area	{triarea( t.uv0,  t.uv1,  t.uv2)};
+	const float a		{triarea(new_uv,  t.uv1,  t.uv2) / t_area};
+	const float b		{triarea( t.uv0, new_uv,  t.uv2) / t_area};
+	const float c		{triarea( t.uv0,  t.uv1, new_uv) / t_area};
+	const Vec3f new_p	{a*t.p0 + b*t.p1 + c*t.p2};
+	const Vec3f tmp_tang{new_p - low_p};
+	// Build tangent space to world space reference frame
+	const Vec3f bitang	{normalize(cross(low_n, tmp_tang))};
+	const Vec3f tang	{cross(bitang, low_n)};
+	const Mat4  mat		{tang, bitang, low_n, {}};
+
+	// Hi poly normal into tangent space of low poly model
+	return {transformVector(transpose(mat), hi_n)};
+
 }
