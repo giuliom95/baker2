@@ -215,14 +215,27 @@ void Core::generateNormalMap() {
 		}
 	}
 
+	Vec3f min, max;
 	for(int j = 0; j < h; ++j) {
 		for(int i = 0; i < w; ++i) {
 			const int count = pix_count[i + j*w];
 			uchar r, g, b;
 			if(count > 0) {
-				r = 255 * (tmp_tex[3*(i + j*w) + 0] / count);
-				g = 255 * (tmp_tex[3*(i + j*w) + 1] / count);
-				b = 255 * (tmp_tex[3*(i + j*w) + 2] / count);
+				const Vec3f nn{
+					tmp_tex[3*(i + j*w) + 0] / count,
+					tmp_tex[3*(i + j*w) + 1] / count,
+					tmp_tex[3*(i + j*w) + 2] / count
+				};
+				r = 255 * nn[0];
+				g = 255 * nn[1];
+				b = 255 * nn[2];
+
+				if(nn[0] < min[0]) min[0] = nn[0];
+				if(nn[1] < min[1]) min[1] = nn[1];
+				if(nn[2] < min[2]) min[2] = nn[2];
+				if(nn[0] > max[0]) max[0] = nn[0];
+				if(nn[1] > max[1]) max[1] = nn[1];
+				if(nn[2] > max[2]) max[2] = nn[2];
 			} else {
 				r = 128;
 				g = 128;
@@ -233,6 +246,8 @@ void Core::generateNormalMap() {
 			tex[3*(i + (h - j - 1)*w) + 2] = b;
 		}
 	}
+
+	std::cout << std::endl << min << std::endl << max << std::endl;
 	
 }
 
