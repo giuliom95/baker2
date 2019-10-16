@@ -1,7 +1,9 @@
 #include "core.hpp"
 
 Core::Core() :
-	texture{2048, 2048, QImage::Format_RGB888},
+	tex_w{DEF_TEX_SIZE}, tex_h{DEF_TEX_SIZE},
+	pix_count(DEF_TEX_SIZE*DEF_TEX_SIZE),
+	tex(3*DEF_TEX_SIZE*DEF_TEX_SIZE),
 	hi_embree_scene{nullptr},
 	hi_embree_device{nullptr} {
 }
@@ -123,133 +125,111 @@ void Core::releaseEmbree() {
 }
 
 void Core::generateNormalMap() {
-	
-	const auto w = texture.width();
-	const auto h = texture.height();
-	uchar* tex = texture.bits();
-
-	// Since every pixel is written multiple and variable times we keep the occurence
-	std::vector<int> pix_count(w*h, 0);
-
-	std::vector<float> tmp_tex(w*h*3, 0);
 
 	// For each triangle
 	const auto trinum = low_shape.mesh.indices.size() / 3;
 	for (int ti = 0; ti < trinum; ++ti) {
-		const Triangle t = Triangle::fromIndex(ti, low_shape, low_attrib);
+		generateNormalMapOnTriangle(ti);
+	}
+	
+	for(int j = 0; j < tex_h; ++j) {
+		for(int i = 0; i < tex_w; ++i) {
+			const int count = pix_count[i + j*tex_w];
+			if(count > 0) {
+				tex[3*(i + j*tex_w) + 0] /= count;
+				tex[3*(i + j*tex_w) + 1] /= count;
+				tex[3*(i + j*tex_w) + 2] /= count;
+			} else {
+				tex[3*(i + j*tex_w) + 0] = 0;
+				tex[3*(i + j*tex_w) + 1] = 0;
+				tex[3*(i + j*tex_w) + 2] = 1;
+			}
+		}
+	}
+	
+}
+
+void Core::generateNormalMapOnTriangle(const int ti) {
+
+	const Triangle t = Triangle::fromIndex(ti, low_shape, low_attrib);
 		
-		const Vec2i uv0i{w * t.uv0[0], h * t.uv0[1]};
-		const Vec2i uv1i{w * t.uv1[0], h * t.uv1[1]};
-		const Vec2i uv2i{w * t.uv2[0], h * t.uv2[1]};
+	const Vec2i uv0i{tex_w * t.uv0[0], tex_h * t.uv0[1]};
+	const Vec2i uv1i{tex_w * t.uv1[0], tex_h * t.uv1[1]};
+	const Vec2i uv2i{tex_w * t.uv2[0], tex_h * t.uv2[1]};
 
-		const Vec2f v01 = t.uv1 - t.uv0;
-		const Vec2f v02 = t.uv2 - t.uv0;
-		// Compute matrix
-		const Mat2 mat = inv({	v01[0], v02[0],
-								v01[1], v02[1]});
-		
-		Vec2i min, max;
+	const Vec2f v01 = t.uv1 - t.uv0;
+	const Vec2f v02 = t.uv2 - t.uv0;
+	// Compute matrix
+	const Mat2 mat = inv({	v01[0], v02[0],
+							v01[1], v02[1]});
+	
+	Vec2i min, max;
 
-		min = uv0i;
-		if(uv1i[0] < min[0]) min[0] = uv1i[0];
-		if(uv1i[1] < min[1]) min[1] = uv1i[1];
-		if(uv2i[0] < min[0]) min[0] = uv2i[0];
-		if(uv2i[1] < min[1]) min[1] = uv2i[1];
+	min = uv0i;
+	if(uv1i[0] < min[0]) min[0] = uv1i[0];
+	if(uv1i[1] < min[1]) min[1] = uv1i[1];
+	if(uv2i[0] < min[0]) min[0] = uv2i[0];
+	if(uv2i[1] < min[1]) min[1] = uv2i[1];
 
-		max = uv0i;
-		if(uv1i[0] > max[0]) max[0] = uv1i[0];
-		if(uv1i[1] > max[1]) max[1] = uv1i[1];
-		if(uv2i[0] > max[0]) max[0] = uv2i[0];
-		if(uv2i[1] > max[1]) max[1] = uv2i[1];
+	max = uv0i;
+	if(uv1i[0] > max[0]) max[0] = uv1i[0];
+	if(uv1i[1] > max[1]) max[1] = uv1i[1];
+	if(uv2i[0] > max[0]) max[0] = uv2i[0];
+	if(uv2i[1] > max[1]) max[1] = uv2i[1];
 
-		// Iterate over texels
-		for(int j = min[1]; j <= max[1]; ++j) {
-			for(int i = min[0]; i <= max[0]; ++i) {
+	// Iterate over texels
+	for(int j = min[1]; j <= max[1]; ++j) {
+		for(int i = min[0]; i <= max[0]; ++i) {
 
-				for(int us = -1; us <= 1; ++us) {
-					for(int vs = -1; vs <= 1; ++vs) {
-						// Check if current point is inside
-						const Vec2f uv = {	(i + ((float)us / 4)) / w,
-											(j + ((float)vs / 4)) / h};
-						const Vec2f uvt = mat * (uv - t.uv0);
+			for(int us = -1; us <= 1; ++us) {
+				for(int vs = -1; vs <= 1; ++vs) {
+					// Check if current point is inside
+					const Vec2f uv = {	(i + ((float)us / 4)) / tex_w,
+										(j + ((float)vs / 4)) / tex_h};
+					const Vec2f uvt = mat * (uv - t.uv0);
 
-						const float ct = 1 - uvt[0] - uvt[1];
-						const bool inside = uvt[0]	>= 0 && uvt[0]	< 1 &&
-											uvt[1]	>= 0 && uvt[1]	< 1 &&
-											ct		>= 0 && ct		< 1;
+					const float ct = 1 - uvt[0] - uvt[1];
+					const bool inside = uvt[0]	>= 0 && uvt[0]	< 1 &&
+										uvt[1]	>= 0 && uvt[1]	< 1 &&
+										ct		>= 0 && ct		< 1;
 
-						if(inside) {
-							
-							const Vec3f pos = ct*t.p0 + uvt[0]*t.p1 + uvt[1]*t.p2;
-							const Vec3f dir = ct*t.n0 + uvt[0]*t.n1 + uvt[1]*t.n2;
+					if(inside) {
+						
+						const Vec3f pos = ct*t.p0 + uvt[0]*t.p1 + uvt[1]*t.p2;
+						const Vec3f dir = ct*t.n0 + uvt[0]*t.n1 + uvt[1]*t.n2;
 
-							Vec3f n;
-							Vec3f tn;	// Normal in tangent space.
-							bool hit{shootRay(pos, dir, n)};
+						Vec3f n;
+						Vec3f tn;	// Normal in tangent space.
+						bool hit{shootRay(pos, dir, n)};
 
-							bool wrong_way{true};
-							if(hit) {
-								tn = toTangSpace(n, pos, dir, uv, t);
-								wrong_way = dot(tn, {0,0,1}) < 0;
-							}
-
-							if(wrong_way || !hit) {
-								hit = shootRay(pos, -1*dir, n);
-								tn = toTangSpace(n, pos, dir, uv, t);
-							}
-
-							if(hit) {
-
-								// Color texture
-								tmp_tex[3*(i + j*w) + 0] += .5 * tn[0] + .5;
-								tmp_tex[3*(i + j*w) + 1] += .5 * tn[1] + .5;
-								tmp_tex[3*(i + j*w) + 2] += .5 * tn[2] + .5;
-
-								pix_count[i + j*w] += 1;
-							}
-
+						bool wrong_way{true};
+						if(hit) {
+							tn = toTangSpace(n, pos, dir, uv, t);
+							wrong_way = dot(tn, {0,0,1}) < 0;
 						}
+
+						if(wrong_way || !hit) {
+							hit = shootRay(pos, -1*dir, n);
+							tn = toTangSpace(n, pos, dir, uv, t);
+						}
+
+						if(hit) {
+
+							// Color texture
+							tex[3*(i + j*tex_w) + 0] += tn[0];
+							tex[3*(i + j*tex_w) + 1] += tn[1];
+							tex[3*(i + j*tex_w) + 2] += tn[2];
+
+							pix_count[i + j*tex_w] += 1;
+						}
+
 					}
 				}
 			}
 		}
 	}
-
-	Vec3f min, max;
-	for(int j = 0; j < h; ++j) {
-		for(int i = 0; i < w; ++i) {
-			const int count = pix_count[i + j*w];
-			uchar r, g, b;
-			if(count > 0) {
-				const Vec3f nn{
-					tmp_tex[3*(i + j*w) + 0] / count,
-					tmp_tex[3*(i + j*w) + 1] / count,
-					tmp_tex[3*(i + j*w) + 2] / count
-				};
-				r = 255 * nn[0];
-				g = 255 * nn[1];
-				b = 255 * nn[2];
-
-				if(nn[0] < min[0]) min[0] = nn[0];
-				if(nn[1] < min[1]) min[1] = nn[1];
-				if(nn[2] < min[2]) min[2] = nn[2];
-				if(nn[0] > max[0]) max[0] = nn[0];
-				if(nn[1] > max[1]) max[1] = nn[1];
-				if(nn[2] > max[2]) max[2] = nn[2];
-			} else {
-				r = 128;
-				g = 128;
-				b = 255;
-			}
-			tex[3*(i + (h - j - 1)*w) + 0] = r;
-			tex[3*(i + (h - j - 1)*w) + 1] = g;
-			tex[3*(i + (h - j - 1)*w) + 2] = b;
-		}
-	}
-
-	std::cout << std::endl << min << std::endl << max << std::endl;
-	
 }
+
 
 Triangle Triangle::fromIndex(	const int ti,
 								const tinyobj::shape_t& shape,

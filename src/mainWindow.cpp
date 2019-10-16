@@ -60,7 +60,6 @@ void MainWindow::loadHighObj() {
 	core.loadHighObj(filepath.toUtf8().constData());
 
 	std::cout << "DONE" << std::endl;
-	setImage(core.texture);
 
 	highPolyFileLabel->setText(filepath);
 }
@@ -75,7 +74,6 @@ void MainWindow::loadLowObj() {
 	core.loadLowObj(filepath.toUtf8().constData());
 
 	std::cout << "DONE" << std::endl;
-	setImage(core.texture);
 
 	lowPolyFileLabel->setText(filepath);
 }
@@ -83,9 +81,21 @@ void MainWindow::loadLowObj() {
 void MainWindow::startBaking() {
 	startBakingBtn->setEnabled(false);
 	core.generateNormalMap();
-	setImage(core.texture);
+	QImage img{1024, 1024, QImage::Format_RGB888};
+	uchar* img_bits{img.bits()};
+	for(int j = 0; j < core.tex_h; ++j) {
+		for(int i = 0; i < core.tex_w; ++i) {
+			const int idx_out = i + j*core.tex_w;
+			const int idx_in = i + (core.tex_h - j - 1)*core.tex_w;
+			img_bits[3*idx_out + 0] = (uchar)(255 * (0.5 * core.tex[3*idx_in + 0] + 0.5));
+			img_bits[3*idx_out + 1] = (uchar)(255 * (0.5 * core.tex[3*idx_in + 1] + 0.5));
+			img_bits[3*idx_out + 2] = (uchar)(255 * (0.5 * core.tex[3*idx_in + 2] + 0.5));
+		}
+	}
+
+	setImage(img);
 
 	startBakingBtn->setEnabled(true);
 
-	core.texture.save("out/test.tiff");
+	img.save("out/test.tiff");
 }

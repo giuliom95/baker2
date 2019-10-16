@@ -19,6 +19,8 @@
 
 #include "math.hpp"
 
+#define DEF_TEX_SIZE 1024
+
 class Triangle {
 public:
 	static Triangle fromIndex(	const int ti,
@@ -39,9 +41,11 @@ public:
 	void loadLowObj	(std::string filename);
 	void loadHighObj(std::string filename);
 
+	void generateNormalMapOnTriangle(const int ti);
 	void generateNormalMap();
 
-	QImage texture;
+	int tex_w, tex_h;
+	std::vector<float> tex;
 
 private:
 
@@ -54,6 +58,8 @@ private:
 	RTCScene			hi_embree_scene;
 	RTCDevice			hi_embree_device;
 	RTCIntersectContext hi_embree_context;
+
+	std::vector<int> pix_count;
 
 	void setupEmbree();
 	void releaseEmbree();
