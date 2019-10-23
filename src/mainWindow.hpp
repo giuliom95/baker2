@@ -9,13 +9,19 @@ class MainWindow : public QWidget {
 	Q_OBJECT
 public:
 	explicit MainWindow();
+	~MainWindow();
 
 	void setImage(QImage& image);
 
 public slots:
 	void loadHighObj();
 	void loadLowObj();
-	void startBaking();
+	void startMapGeneration();
+	void mapGenerationDone();
+	void mapGenerationProgress(int);
+
+signals:
+	void startMapGenerationSig();
 
 private:
 	QLabel*			texturePreview;
@@ -24,8 +30,24 @@ private:
 	QLineEdit*		lowPolyFileLabel;
 	QLineEdit*		highPolyFileLabel;
 	QPushButton*	startBakingBtn;
+	QProgressBar*	progressBar;
 
-	Core core;
+	Core 			core;
+	QThread			workerThread;
+};
+
+class Worker : public QObject {
+	Q_OBJECT
+public slots:
+	void doWork();
+
+public:
+	Core& core;
+	Worker(Core& c) : core{c} {}
+
+signals:
+	void progressUpdate(int);
+	void finished();
 };
 
 #endif

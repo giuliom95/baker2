@@ -19,7 +19,10 @@
 
 #include "math.hpp"
 
-#define DEF_TEX_SIZE 1024
+#define DEF_TEX_SIZE 2048
+
+// The square root of the number of samples
+#define DEF_SPP_SIDE 2
 
 class Triangle {
 public:
@@ -43,9 +46,13 @@ public:
 
 	void generateNormalMapOnTriangle(const int ti);
 	void generateNormalMap();
+	void divideMapByCount();
 
 	int tex_w, tex_h;
 	std::vector<float> tex;
+	std::vector<int> pix_count;
+
+	const int getLowTrisNum();
 
 private:
 
@@ -58,8 +65,6 @@ private:
 	RTCScene			hi_embree_scene;
 	RTCDevice			hi_embree_device;
 	RTCIntersectContext hi_embree_context;
-
-	std::vector<int> pix_count;
 
 	void setupEmbree();
 	void releaseEmbree();

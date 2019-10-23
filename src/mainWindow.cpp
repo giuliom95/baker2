@@ -3,7 +3,6 @@
 
 MainWindow::MainWindow() :	QWidget(),
 							core() {
-	resize(800,800);
 	setWindowTitle("TEST");
 
 	QVBoxLayout* mainLayout = new QVBoxLayout();
@@ -28,22 +27,32 @@ MainWindow::MainWindow() :	QWidget(),
 	loadPanelLayout->addWidget(highPolyLoadBtn,		1, 2);
 
 	startBakingBtn = new QPushButton("Start baking");
-
-	texturePreview = new QLabel();
-	QImage tmpImg{1024,1024,QImage::Format_RGB888};
-	tmpImg.allGray();
-	setImage(tmpImg);
-	QScrollArea* scrollArea = new QScrollArea();
-	scrollArea->setWidget(texturePreview);
+	progressBar = new QProgressBar();
+	progressBar->setMinimum(0);
+	progressBar->setMaximum(10);
+	progressBar->setValue(0);
 
 	mainLayout->addLayout(loadPanelLayout);
 	mainLayout->addWidget(startBakingBtn);
-	mainLayout->addWidget(scrollArea);
+	mainLayout->addWidget(progressBar);
 	setLayout(mainLayout);
 
-	connect(highPolyLoadBtn,	SIGNAL (clicked()), this, SLOT(loadHighObj()));
-	connect(lowPolyLoadBtn,		SIGNAL (clicked()), this, SLOT(loadLowObj()));
-	connect(startBakingBtn,		SIGNAL (clicked()), this, SLOT(startBaking()));
+	Worker* worker = new Worker(core);
+	worker->moveToThread(&workerThread);
+
+	connect(highPolyLoadBtn,	SIGNAL(clicked()), this,	SLOT(loadHighObj()));
+	connect(lowPolyLoadBtn,		SIGNAL(clicked()), this,	SLOT(loadLowObj()));
+	connect(startBakingBtn,		SIGNAL(clicked()), this,	SLOT(startMapGeneration()));
+	connect(this, SIGNAL(startMapGenerationSig()), worker, SLOT(doWork()));
+	connect(worker, SIGNAL(progressUpdate(int)), this, SLOT(mapGenerationProgress(int)), Qt::DirectConnection);
+	connect(worker, SIGNAL(finished()), this, SLOT(mapGenerationDone()));
+
+	workerThread.start();
+}
+
+MainWindow::~MainWindow() {
+	workerThread.quit();
+	workerThread.wait();
 }
 
 void MainWindow::setImage(QImage& image) {
@@ -73,29 +82,46 @@ void MainWindow::loadLowObj() {
 
 	core.loadLowObj(filepath.toUtf8().constData());
 
+	progressBar->setMaximum(core.getLowTrisNum());
+
 	std::cout << "DONE" << std::endl;
 
 	lowPolyFileLabel->setText(filepath);
 }
 
-void MainWindow::startBaking() {
+
+void MainWindow::startMapGeneration() {
 	startBakingBtn->setEnabled(false);
-	core.generateNormalMap();
-	QImage img{1024, 1024, QImage::Format_RGB888};
-	uchar* img_bits{img.bits()};
-	for(int j = 0; j < core.tex_h; ++j) {
-		for(int i = 0; i < core.tex_w; ++i) {
-			const int idx_out = i + j*core.tex_w;
-			const int idx_in = i + (core.tex_h - j - 1)*core.tex_w;
-			img_bits[3*idx_out + 0] = (uchar)(255 * (0.5 * core.tex[3*idx_in + 0] + 0.5));
-			img_bits[3*idx_out + 1] = (uchar)(255 * (0.5 * core.tex[3*idx_in + 1] + 0.5));
-			img_bits[3*idx_out + 2] = (uchar)(255 * (0.5 * core.tex[3*idx_in + 2] + 0.5));
-		}
-	}
+	startBakingBtn->setText("Baking...");
+	startBakingBtn->repaint();
 
-	setImage(img);
+	emit startMapGenerationSig();
+}
 
+void MainWindow::mapGenerationDone() {
+	progressBar->setValue(progressBar->maximum());
+	startBakingBtn->setText("Start baking");
 	startBakingBtn->setEnabled(true);
 
-	img.save("out/test.tiff");
+	std::cout << "DONE BAKING" << std::endl;
+}
+
+void MainWindow::mapGenerationProgress(int progress) {
+	//std::cout << progress << std::endl;
+	progressBar->setValue(progress);
+	QCoreApplication::processEvents(QEventLoop::AllEvents);
+}
+
+void Worker::doWork() {
+
+	const auto trinum = core.getLowTrisNum();
+	for (int ti = 0; ti < trinum; ++ti) {
+		core.generateNormalMapOnTriangle(ti);
+		if(ti % 100 == 0) 
+			emit progressUpdate(ti);
+	}
+
+	core.divideMapByCount();
+
+	emit finished();
 }

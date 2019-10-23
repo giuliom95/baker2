@@ -127,25 +127,12 @@ void Core::releaseEmbree() {
 void Core::generateNormalMap() {
 
 	// For each triangle
-	const auto trinum = low_shape.mesh.indices.size() / 3;
+	const auto trinum = getLowTrisNum();
 	for (int ti = 0; ti < trinum; ++ti) {
 		generateNormalMapOnTriangle(ti);
 	}
-	
-	for(int j = 0; j < tex_h; ++j) {
-		for(int i = 0; i < tex_w; ++i) {
-			const int count = pix_count[i + j*tex_w];
-			if(count > 0) {
-				tex[3*(i + j*tex_w) + 0] /= count;
-				tex[3*(i + j*tex_w) + 1] /= count;
-				tex[3*(i + j*tex_w) + 2] /= count;
-			} else {
-				tex[3*(i + j*tex_w) + 0] = 0;
-				tex[3*(i + j*tex_w) + 1] = 0;
-				tex[3*(i + j*tex_w) + 2] = 1;
-			}
-		}
-	}
+
+	divideMapByCount();
 	
 }
 
@@ -181,11 +168,12 @@ void Core::generateNormalMapOnTriangle(const int ti) {
 	for(int j = min[1]; j <= max[1]; ++j) {
 		for(int i = min[0]; i <= max[0]; ++i) {
 
-			for(int us = -1; us <= 1; ++us) {
-				for(int vs = -1; vs <= 1; ++vs) {
+			for(int us = 0; us < DEF_SPP_SIDE; ++us) {
+				for(int vs = 0; vs < DEF_SPP_SIDE; ++vs) {
+
 					// Check if current point is inside
-					const Vec2f uv = {	(i + ((float)us / 4)) / tex_w,
-										(j + ((float)vs / 4)) / tex_h};
+					const Vec2f uv = {	(i + ((float)us / DEF_SPP_SIDE)) / tex_w,
+										(j + ((float)vs / DEF_SPP_SIDE)) / tex_h};
 					const Vec2f uvt = mat * (uv - t.uv0);
 
 					const float ct = 1 - uvt[0] - uvt[1];
@@ -228,6 +216,27 @@ void Core::generateNormalMapOnTriangle(const int ti) {
 			}
 		}
 	}
+}
+
+void Core::divideMapByCount() {
+	for(int j = 0; j < tex_h; ++j) {
+		for(int i = 0; i < tex_w; ++i) {
+			const int count = pix_count[i + j*tex_w];
+			if(count > 0) {
+				tex[3*(i + j*tex_w) + 0] /= count;
+				tex[3*(i + j*tex_w) + 1] /= count;
+				tex[3*(i + j*tex_w) + 2] /= count;
+			} else {
+				tex[3*(i + j*tex_w) + 0] = 0;
+				tex[3*(i + j*tex_w) + 1] = 0;
+				tex[3*(i + j*tex_w) + 2] = 1;
+			}
+		}
+	}
+}
+
+const int Core::getLowTrisNum() {
+	return low_shape.mesh.indices.size() / 3;
 }
 
 
