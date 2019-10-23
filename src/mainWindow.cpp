@@ -9,11 +9,14 @@ MainWindow::MainWindow() :	QWidget(),
 	
 	QLabel* lowPolyLabel	= new QLabel("Low poly model");
 	QLabel* highPolyLabel	= new QLabel("High poly model");
+	QLabel* outFileLabel	= new QLabel("Out texture file");
 
 	lowPolyFileLabel	= new QLineEdit("No file selected");
 	highPolyFileLabel	= new QLineEdit("No file selected");
+	outFileFileLabel	= new QLineEdit("No file selected");
 	lowPolyLoadBtn		= new QPushButton("Load...");
 	highPolyLoadBtn		= new QPushButton("Load...");
+	outFileChooseBtn	= new QPushButton("Choose...");
 
 	lowPolyFileLabel->setReadOnly(true);
 	highPolyFileLabel->setReadOnly(true);
@@ -25,6 +28,9 @@ MainWindow::MainWindow() :	QWidget(),
 	loadPanelLayout->addWidget(highPolyLabel,		1, 0);
 	loadPanelLayout->addWidget(highPolyFileLabel,	1, 1);
 	loadPanelLayout->addWidget(highPolyLoadBtn,		1, 2);
+	loadPanelLayout->addWidget(outFileLabel,		2, 0);
+	loadPanelLayout->addWidget(outFileFileLabel,	2, 1);
+	loadPanelLayout->addWidget(outFileChooseBtn,	2, 2);
 
 	startBakingBtn = new QPushButton("Start baking");
 	progressBar = new QProgressBar();
@@ -45,6 +51,7 @@ MainWindow::MainWindow() :	QWidget(),
 
 	connect(highPolyLoadBtn,	SIGNAL(clicked()), this,	SLOT(loadHighObj()));
 	connect(lowPolyLoadBtn,		SIGNAL(clicked()), this,	SLOT(loadLowObj()));
+	connect(outFileChooseBtn,	SIGNAL(clicked()), this,	SLOT(selectOutFile()));
 	connect(startBakingBtn,		SIGNAL(clicked()), this,	SLOT(startMapGeneration()));
 	connect(this, SIGNAL(startMapGenerationSig()), worker, SLOT(doWork()));
 	connect(worker, SIGNAL(progressUpdate(int)), this, SLOT(mapGenerationProgress(int)), Qt::DirectConnection);
@@ -54,6 +61,7 @@ MainWindow::MainWindow() :	QWidget(),
 
 	lowPolyLoaded = false;
 	highPolyLoaded = false;
+	outFilePath = QString();
 	startBakingBtn->setEnabled(false);
 }
 
@@ -81,7 +89,7 @@ void MainWindow::loadHighObj() {
 	highPolyFileLabel->setText(filepath);
 
 	highPolyLoaded = true;
-	if(lowPolyLoaded) startBakingBtn->setEnabled(true);
+	checkBakingRequirements();
 }
 
 
@@ -101,7 +109,16 @@ void MainWindow::loadLowObj() {
 	lowPolyFileLabel->setText(filepath);
 
 	lowPolyLoaded = true;
-	if(highPolyLoaded) startBakingBtn->setEnabled(true);
+	checkBakingRequirements();
+}
+
+void MainWindow::selectOutFile() {
+	const auto filepath = QFileDialog::getSaveFileName(this, "Select out file", "./", "*.png");
+	if(filepath.isEmpty()) return;
+	outFilePath = filepath;
+	outFileFileLabel->setText(filepath);
+
+	checkBakingRequirements();
 }
 
 
@@ -121,6 +138,7 @@ void MainWindow::mapGenerationDone() {
 	startBakingBtn->setText("Start baking");
 	startBakingBtn->setEnabled(true);
 
+	
 	std::cout << "DONE BAKING" << std::endl;
 }
 
@@ -128,6 +146,14 @@ void MainWindow::mapGenerationProgress(int progress) {
 	//std::cout << progress << std::endl;
 	progressBar->setValue(progress);
 	QCoreApplication::processEvents(QEventLoop::AllEvents);
+}
+
+void MainWindow::checkBakingRequirements() {
+	if(
+		lowPolyLoaded &&
+		highPolyLoaded &&
+		!outFilePath.isEmpty()
+	) startBakingBtn->setEnabled(true);
 }
 
 void Worker::doWork() {

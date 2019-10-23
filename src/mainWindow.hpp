@@ -16,6 +16,7 @@ public:
 public slots:
 	void loadHighObj();
 	void loadLowObj();
+	void selectOutFile();
 	void startMapGeneration();
 	void mapGenerationDone();
 	void mapGenerationProgress(int);
@@ -27,15 +28,20 @@ private:
 	QLabel*			texturePreview;
 	QPushButton*	lowPolyLoadBtn;
 	QPushButton*	highPolyLoadBtn;
+	QPushButton*	outFileChooseBtn;
 	QLineEdit*		lowPolyFileLabel;
 	QLineEdit*		highPolyFileLabel;
+	QLineEdit*		outFileFileLabel;
 	QPushButton*	startBakingBtn;
 	QProgressBar*	progressBar;
 
 	Core 			core;
 	QThread			workerThread;
 
+	QString			outFilePath;
 	bool lowPolyLoaded, highPolyLoaded;
+
+	void checkBakingRequirements();
 };
 
 class Worker : public QObject {
