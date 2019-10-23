@@ -3,7 +3,7 @@
 
 MainWindow::MainWindow() :	QWidget(),
 							core() {
-	setWindowTitle("TEST");
+	setWindowTitle("Baker");
 
 	QVBoxLayout* mainLayout = new QVBoxLayout();
 	
@@ -32,9 +32,12 @@ MainWindow::MainWindow() :	QWidget(),
 	progressBar->setMaximum(10);
 	progressBar->setValue(0);
 
+	QHBoxLayout* startBar = new QHBoxLayout();
+	startBar->addWidget(progressBar);
+	startBar->addWidget(startBakingBtn);
+
 	mainLayout->addLayout(loadPanelLayout);
-	mainLayout->addWidget(startBakingBtn);
-	mainLayout->addWidget(progressBar);
+	mainLayout->addLayout(startBar);
 	setLayout(mainLayout);
 
 	Worker* worker = new Worker(core);
@@ -91,6 +94,9 @@ void MainWindow::loadLowObj() {
 
 
 void MainWindow::startMapGeneration() {
+
+	// Fixes width so the label change doesn't change the button's size
+	startBakingBtn->setMinimumWidth(startBakingBtn->width());
 	startBakingBtn->setEnabled(false);
 	startBakingBtn->setText("Baking...");
 	startBakingBtn->repaint();
