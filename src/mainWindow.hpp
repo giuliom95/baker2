@@ -34,6 +34,8 @@ private:
 
 	Core 			core;
 	QThread			workerThread;
+
+	bool lowPolyLoaded, highPolyLoaded;
 };
 
 class Worker : public QObject {

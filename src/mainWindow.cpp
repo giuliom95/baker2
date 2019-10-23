@@ -51,6 +51,10 @@ MainWindow::MainWindow() :	QWidget(),
 	connect(worker, SIGNAL(finished()), this, SLOT(mapGenerationDone()));
 
 	workerThread.start();
+
+	lowPolyLoaded = false;
+	highPolyLoaded = false;
+	startBakingBtn->setEnabled(false);
 }
 
 MainWindow::~MainWindow() {
@@ -64,7 +68,8 @@ void MainWindow::setImage(QImage& image) {
 }
 
 void MainWindow::loadHighObj() {
-	const auto filepath = QFileDialog::getOpenFileName(this, "Open high poly OBJ", "./", "*.obj");
+	const QString filepath = QFileDialog::getOpenFileName(this, "Open high poly OBJ", "./", "*.obj");
+	if(filepath.isEmpty()) return;
 
 	highPolyFileLabel->setText("Loading...");
 	highPolyFileLabel->repaint();
@@ -74,11 +79,15 @@ void MainWindow::loadHighObj() {
 	std::cout << "DONE" << std::endl;
 
 	highPolyFileLabel->setText(filepath);
+
+	highPolyLoaded = true;
+	if(lowPolyLoaded) startBakingBtn->setEnabled(true);
 }
 
 
 void MainWindow::loadLowObj() {
 	const auto filepath = QFileDialog::getOpenFileName(this, "Open low poly OBJ", "./", "*.obj");
+	if(filepath.isEmpty()) return;
 
 	lowPolyFileLabel->setText("Loading...");
 	lowPolyFileLabel->repaint();
@@ -90,6 +99,9 @@ void MainWindow::loadLowObj() {
 	std::cout << "DONE" << std::endl;
 
 	lowPolyFileLabel->setText(filepath);
+
+	lowPolyLoaded = true;
+	if(highPolyLoaded) startBakingBtn->setEnabled(true);
 }
 
 
