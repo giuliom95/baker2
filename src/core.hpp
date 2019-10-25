@@ -50,7 +50,6 @@ public:
 
 	int tex_w, tex_h;
 	std::vector<float> tex;
-	std::vector<int> pix_count;
 
 	const int getLowTrisNum();
 
@@ -65,6 +64,8 @@ private:
 	RTCScene			hi_embree_scene;
 	RTCDevice			hi_embree_device;
 	RTCIntersectContext hi_embree_context;
+
+	std::vector<int> pix_count;
 
 	void setupEmbree();
 	void releaseEmbree();

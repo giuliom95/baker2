@@ -138,7 +138,20 @@ void MainWindow::mapGenerationDone() {
 	startBakingBtn->setText("Start baking");
 	startBakingBtn->setEnabled(true);
 
-	
+	const int w = core.tex_w;
+	const int h = core.tex_h;
+	QImage img{w, h, QImage::Format_RGB888};
+	uchar* img_bits = img.bits();
+	for(int i = 0; i < w; ++i) {
+		for(int j = 0; j < h; ++j) {
+			const int in_idx = 3*(i + j*w);
+			const int out_idx = 3*(i + (h - j - 1)*w);
+			img_bits[out_idx + 0] = 128 * core.tex[in_idx + 0] + 127;
+			img_bits[out_idx + 1] = 128 * core.tex[in_idx + 1] + 127;
+			img_bits[out_idx + 2] = 128 * core.tex[in_idx + 2] + 127;
+		}
+	}
+	img.save(outFilePath);
 	std::cout << "DONE BAKING" << std::endl;
 }
 
