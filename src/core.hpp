@@ -5,7 +5,7 @@
 	#define VERBOSE 1
 #endif
 
-#include <tiny_obj_loader.h>
+#include "tiny_obj_loader.h"
 
 #include <iostream>
 
@@ -44,6 +44,7 @@ public:
 	void loadLowObj	(std::string filename);
 	void loadHighObj(std::string filename);
 
+	void clearBuffers();
 	void generateNormalMapOnTriangle(const int ti);
 	void generateNormalMap();
 	void divideMapByCount();

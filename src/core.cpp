@@ -32,9 +32,9 @@ void Core::loadObj(	std::string						inputfile,
 
 	std::vector<tinyobj::material_t> materials;
 
-	std::string err;
+    std::string err, warn;
 
-	bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &err, inputfile.c_str());
+    bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, inputfile.c_str());
 
 	if(!ret)
 		std::cerr << err << std::endl;
@@ -84,7 +84,7 @@ void Core::setupEmbree() {
 								RTC_FORMAT_UINT3, triangles.data(),
 								0, 3*sizeof(uint), triangles.size() / 3);
 	rtcCommitGeometry(geom);
-	const auto geom_id = rtcAttachGeometry(hi_embree_scene, geom);
+    rtcAttachGeometry(hi_embree_scene, geom);
 	rtcReleaseGeometry(geom);
 	rtcCommitScene(hi_embree_scene);
 
@@ -124,6 +124,11 @@ void Core::releaseEmbree() {
 	if(hi_embree_device) rtcReleaseDevice(hi_embree_device);
 }
 
+void Core::clearBuffers() {
+	pix_count = std::vector<int>(tex_w*tex_h, 0),
+	tex = std::vector<float>(3*tex_w*tex_w, 0);
+}
+
 void Core::generateNormalMap() {
 
 	// For each triangle
@@ -140,9 +145,9 @@ void Core::generateNormalMapOnTriangle(const int ti) {
 
 	const Triangle t = Triangle::fromIndex(ti, low_shape, low_attrib);
 		
-	const Vec2i uv0i{tex_w * t.uv0[0], tex_h * t.uv0[1]};
-	const Vec2i uv1i{tex_w * t.uv1[0], tex_h * t.uv1[1]};
-	const Vec2i uv2i{tex_w * t.uv2[0], tex_h * t.uv2[1]};
+    const Vec2i uv0i{tex_w * t.uv0[0], tex_h * t.uv0[1]};
+    const Vec2i uv1i{tex_w * t.uv1[0], tex_h * t.uv1[1]};
+    const Vec2i uv2i{tex_w * t.uv2[0], tex_h * t.uv2[1]};
 
 	const Vec2f v01 = t.uv1 - t.uv0;
 	const Vec2f v02 = t.uv2 - t.uv0;

@@ -10,6 +10,7 @@ MainWindow::MainWindow() :	QWidget(),
 	QLabel* lowPolyLabel	= new QLabel("Low poly model");
 	QLabel* highPolyLabel	= new QLabel("High poly model");
 	QLabel* outFileLabel	= new QLabel("Out texture file");
+	QLabel* mapSizeLabel	= new QLabel("Map size");
 
 	lowPolyFileLabel	= new QLineEdit("No file selected");
 	highPolyFileLabel	= new QLineEdit("No file selected");
@@ -17,6 +18,15 @@ MainWindow::MainWindow() :	QWidget(),
 	lowPolyLoadBtn		= new QPushButton("Load...");
 	highPolyLoadBtn		= new QPushButton("Load...");
 	outFileChooseBtn	= new QPushButton("Choose...");
+	
+	mapSizeCombo		= new QComboBox();
+	mapSizeCombo->addItem("256x256");
+	mapSizeCombo->addItem("512x512");
+	mapSizeCombo->addItem("1024x1024");
+	mapSizeCombo->addItem("2048x2048");
+	mapSizeCombo->addItem("4096x4096");
+	mapSizeCombo->addItem("8192x8192");
+	setMapSize("256x256");
 
 	lowPolyFileLabel->setReadOnly(true);
 	highPolyFileLabel->setReadOnly(true);
@@ -31,6 +41,8 @@ MainWindow::MainWindow() :	QWidget(),
 	loadPanelLayout->addWidget(outFileLabel,		2, 0);
 	loadPanelLayout->addWidget(outFileFileLabel,	2, 1);
 	loadPanelLayout->addWidget(outFileChooseBtn,	2, 2);
+	loadPanelLayout->addWidget(mapSizeLabel,		3, 0);
+	loadPanelLayout->addWidget(mapSizeCombo,		3, 1);
 
 	startBakingBtn = new QPushButton("Start baking");
 	progressBar = new QProgressBar();
@@ -46,33 +58,21 @@ MainWindow::MainWindow() :	QWidget(),
 	mainLayout->addLayout(startBar);
 	setLayout(mainLayout);
 
-	Worker* worker = new Worker(core);
-	worker->moveToThread(&workerThread);
-
 	connect(highPolyLoadBtn,	SIGNAL(clicked()), this,	SLOT(loadHighObj()));
 	connect(lowPolyLoadBtn,		SIGNAL(clicked()), this,	SLOT(loadLowObj()));
 	connect(outFileChooseBtn,	SIGNAL(clicked()), this,	SLOT(selectOutFile()));
-	connect(startBakingBtn,		SIGNAL(clicked()), this,	SLOT(startMapGeneration()));
-	connect(this, SIGNAL(startMapGenerationSig()), worker, SLOT(doWork()));
-	connect(worker, SIGNAL(progressUpdate(int)), this, SLOT(mapGenerationProgress(int)), Qt::DirectConnection);
-	connect(worker, SIGNAL(finished()), this, SLOT(mapGenerationDone()));
-
-	workerThread.start();
+	connect(mapSizeCombo,		SIGNAL(activated(QString)), this, SLOT(setMapSize(QString)));
+    connect(startBakingBtn,		SIGNAL(clicked()), this,	SLOT(generateMap()));
 
 	lowPolyLoaded = false;
 	highPolyLoaded = false;
 	outFilePath = QString();
 	startBakingBtn->setEnabled(false);
+
+	canUpdate = true;
 }
 
 MainWindow::~MainWindow() {
-	workerThread.quit();
-	workerThread.wait();
-}
-
-void MainWindow::setImage(QImage& image) {
-	texturePreview->setPixmap(QPixmap::fromImage(image));
-	texturePreview->setMinimumSize(image.width(), image.height());
 }
 
 void MainWindow::loadHighObj() {
@@ -121,44 +121,64 @@ void MainWindow::selectOutFile() {
 	checkBakingRequirements();
 }
 
+void MainWindow::setMapSize(QString s) {
+	int w = s.split("x")[0].toInt();
+	core.tex_w = w;
+	core.tex_h = w;
+}
 
-void MainWindow::startMapGeneration() {
+void MainWindow::generateMap() {
 
 	// Fixes width so the label change doesn't change the button's size
 	startBakingBtn->setMinimumWidth(startBakingBtn->width());
+    lowPolyLoadBtn->setEnabled(false);
+    highPolyLoadBtn->setEnabled(false);
+    outFileChooseBtn->setEnabled(false);
+    lowPolyFileLabel->setEnabled(false);
+    highPolyFileLabel->setEnabled(false);
+    mapSizeCombo->setEnabled(false);
+    outFileFileLabel->setEnabled(false);
 	startBakingBtn->setEnabled(false);
 	startBakingBtn->setText("Baking...");
 	startBakingBtn->repaint();
 
-	emit startMapGenerationSig();
-}
+    //emit startMapGenerationSig();
 
-void MainWindow::mapGenerationDone() {
-	progressBar->setValue(progressBar->maximum());
-	startBakingBtn->setText("Start baking");
-	startBakingBtn->setEnabled(true);
+    core.clearBuffers();
+    const auto trinum = core.getLowTrisNum();
+    for (int ti = 0; ti < trinum; ++ti) {
+        core.generateNormalMapOnTriangle(ti);
+        if(ti % 100 == 0) {
+            progressBar->setValue(ti);
+        }
+    }
 
-	const int w = core.tex_w;
-	const int h = core.tex_h;
-	QImage img{w, h, QImage::Format_RGB888};
-	uchar* img_bits = img.bits();
-	for(int i = 0; i < w; ++i) {
-		for(int j = 0; j < h; ++j) {
-			const int in_idx = 3*(i + j*w);
-			const int out_idx = 3*(i + (h - j - 1)*w);
-			img_bits[out_idx + 0] = 128 * core.tex[in_idx + 0] + 127;
-			img_bits[out_idx + 1] = 128 * core.tex[in_idx + 1] + 127;
-			img_bits[out_idx + 2] = 128 * core.tex[in_idx + 2] + 127;
-		}
-	}
-	img.save(outFilePath);
-	std::cout << "DONE BAKING" << std::endl;
-}
+    core.divideMapByCount();
+    const int w = core.tex_w;
+    const int h = core.tex_h;
+    QImage img{w, h, QImage::Format_RGB888};
+    uchar* img_bits = img.bits();
+    for(int i = 0; i < w; ++i) {
+        for(int j = 0; j < h; ++j) {
+            const int in_idx = 3*(i + j*w);
+            const int out_idx = 3*(i + (h - j - 1)*w);
+            img_bits[out_idx + 0] = 128 * core.tex[in_idx + 0] + 127;
+            img_bits[out_idx + 1] = 128 * core.tex[in_idx + 1] + 127;
+            img_bits[out_idx + 2] = 128 * core.tex[in_idx + 2] + 127;
+        }
+    }
+    img.save(outFilePath);
 
-void MainWindow::mapGenerationProgress(int progress) {
-	//std::cout << progress << std::endl;
-	progressBar->setValue(progress);
-	QCoreApplication::processEvents(QEventLoop::AllEvents);
+    progressBar->setValue(progressBar->maximum());
+    startBakingBtn->setText("Start baking");
+    startBakingBtn->setEnabled(true);
+    lowPolyLoadBtn->setEnabled(true);
+    highPolyLoadBtn->setEnabled(true);
+    outFileChooseBtn->setEnabled(true);
+    lowPolyFileLabel->setEnabled(true);
+    highPolyFileLabel->setEnabled(true);
+    mapSizeCombo->setEnabled(true);
+    outFileFileLabel->setEnabled(true);
 }
 
 void MainWindow::checkBakingRequirements() {
@@ -167,18 +187,4 @@ void MainWindow::checkBakingRequirements() {
 		highPolyLoaded &&
 		!outFilePath.isEmpty()
 	) startBakingBtn->setEnabled(true);
-}
-
-void Worker::doWork() {
-
-	const auto trinum = core.getLowTrisNum();
-	for (int ti = 0; ti < trinum; ++ti) {
-		core.generateNormalMapOnTriangle(ti);
-		if(ti % 100 == 0) 
-			emit progressUpdate(ti);
-	}
-
-	core.divideMapByCount();
-
-	emit finished();
 }

@@ -11,51 +11,37 @@ public:
 	explicit MainWindow();
 	~MainWindow();
 
-	void setImage(QImage& image);
-
 public slots:
 	void loadHighObj();
 	void loadLowObj();
 	void selectOutFile();
-	void startMapGeneration();
-	void mapGenerationDone();
-	void mapGenerationProgress(int);
+	void setMapSize(QString);
+    void generateMap();
 
 signals:
 	void startMapGenerationSig();
 
 private:
-	QLabel*			texturePreview;
 	QPushButton*	lowPolyLoadBtn;
 	QPushButton*	highPolyLoadBtn;
 	QPushButton*	outFileChooseBtn;
 	QLineEdit*		lowPolyFileLabel;
 	QLineEdit*		highPolyFileLabel;
 	QLineEdit*		outFileFileLabel;
+	QComboBox*		mapSizeCombo;
 	QPushButton*	startBakingBtn;
 	QProgressBar*	progressBar;
 
 	Core 			core;
-	QThread			workerThread;
+    QThread*		workerThread;
 
 	QString			outFilePath;
 	bool lowPolyLoaded, highPolyLoaded;
 
 	void checkBakingRequirements();
-};
 
-class Worker : public QObject {
-	Q_OBJECT
-public slots:
-	void doWork();
+	bool canUpdate;
 
-public:
-	Core& core;
-	Worker(Core& c) : core{c} {}
-
-signals:
-	void progressUpdate(int);
-	void finished();
 };
 
 #endif
