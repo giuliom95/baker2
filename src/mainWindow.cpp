@@ -163,11 +163,37 @@ void MainWindow::generateMap() {
 	uchar* img_bits = img.bits();
 	for(int i = 0; i < w; ++i) {
 		for(int j = 0; j < h; ++j) {
-			const int in_idx = 3*(i + j*w);
 			const int out_idx = 3*(i + (h - j - 1)*w);
-			img_bits[out_idx + 0] = 128 * core.tex[in_idx + 0] + 127;
-			img_bits[out_idx + 1] = 128 * core.tex[in_idx + 1] + 127;
-			img_bits[out_idx + 2] = 128 * core.tex[in_idx + 2] + 127;
+			const int im = i - 1 < 	0 ?     0 : i - 1; // i minus
+			const int ip = i + 1 >= w ? w - 1 : i + 1; // i plus
+			const int jm = j - 1 < 	0 ?     0 : j - 1; // j minus
+			const int jp = j + 1 >= h ? h - 1 : j + 1; // j plus
+
+			const int idx_mm = 3*(im + jm*w);
+			const int idx_0m = 3*(i  + jm*w);
+			const int idx_pm = 3*(ip + jm*w);
+			const int idx_m0 = 3*(im + j *w);
+			const int idx_00 = 3*(i  + j *w);
+			const int idx_p0 = 3*(ip + j *w);
+			const int idx_mp = 3*(im + jp*w);
+			const int idx_0p = 3*(i  + jp*w);
+			const int idx_pp = 3*(ip + jp*w);
+
+			Vec3f blurred = (1/16.0f) * ( 
+				1 * Vec3f{core.tex[idx_mm + 0], core.tex[idx_mm + 1], core.tex[idx_mm + 2]} + 
+				2 * Vec3f{core.tex[idx_0m + 0], core.tex[idx_0m + 1], core.tex[idx_0m + 2]} + 
+				1 * Vec3f{core.tex[idx_pm + 0], core.tex[idx_pm + 1], core.tex[idx_pm + 2]} + 
+				2 * Vec3f{core.tex[idx_m0 + 0], core.tex[idx_m0 + 1], core.tex[idx_m0 + 2]} + 
+				4 * Vec3f{core.tex[idx_00 + 0], core.tex[idx_00 + 1], core.tex[idx_00 + 2]} + 
+				2 * Vec3f{core.tex[idx_p0 + 0], core.tex[idx_p0 + 1], core.tex[idx_p0 + 2]} + 
+				1 * Vec3f{core.tex[idx_mp + 0], core.tex[idx_mp + 1], core.tex[idx_mp + 2]} + 
+				2 * Vec3f{core.tex[idx_0p + 0], core.tex[idx_0p + 1], core.tex[idx_0p + 2]} + 
+				1 * Vec3f{core.tex[idx_pp + 0], core.tex[idx_pp + 1], core.tex[idx_pp + 2]}
+			);
+
+			img_bits[out_idx + 0] = 128 * blurred[0] + 127;
+			img_bits[out_idx + 1] = 128 * blurred[1] + 127;
+			img_bits[out_idx + 2] = 128 * blurred[2] + 127;
 		}
 	}
 	img.save(outFilePath);
