@@ -79,14 +79,10 @@ private:
 						const Vec2f&	uv,
 						const Triangle&	t);
 
-	static void loadObj(std::string						inputfile, 
-						tinyobj::attrib_t&				attrib,
-						std::vector<tinyobj::shape_t>&	shapes);
+	void loadObj(std::string						inputfile, 
+				tinyobj::attrib_t&				attrib,
+				std::vector<tinyobj::shape_t>&	shapes);
 
-	// TODO: Remove later
-	static void bbox(	const std::vector<float>&	vertices,
-						Vec3f&						min,
-						Vec3f&						max);
 };
 
 #endif

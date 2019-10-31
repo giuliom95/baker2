@@ -32,28 +32,82 @@ void Core::loadObj(	std::string						inputfile,
 
 	std::vector<tinyobj::material_t> materials;
 
-    std::string err, warn;
+	std::string err, warn;
 
-    bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, inputfile.c_str());
+	bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &err, inputfile.c_str());
 
 	if(!ret)
 		std::cerr << err << std::endl;
 
+	if(attrib.normals.size() == 0) {
+		// need to generate vertex normals
+		std::cout << "Generating normals..." << std::endl;
+
+		// iterate over triangles to get their face normals
+
+		// iterate over vertices of every triangle and average the normals of the adjacent faces
+
+		// to find adjacent faces to a vertex, iterate over faces and look for the vertex index occurencies
+		tinyobj::shape_t& s = shapes[0];
+
+		const int trinum{s.mesh.indices.size() / 3};
+		const int vnum{attrib.vertices.size() / 3};
+		// Initialize blank normals
+		attrib.normals = std::vector<tinyobj::real_t>(vnum*3, 0);
+
+		for (int ti = 0; ti < trinum; ++ti) {
+			const int vidx0 = s.mesh.indices[ti*3 + 0].vertex_index;
+			const int vidx1 = s.mesh.indices[ti*3 + 1].vertex_index;
+			const int vidx2 = s.mesh.indices[ti*3 + 2].vertex_index;
+			s.mesh.indices[ti*3 + 0].normal_index = vidx0;
+			s.mesh.indices[ti*3 + 1].normal_index = vidx1;
+			s.mesh.indices[ti*3 + 2].normal_index = vidx2;
+
+			const Vec3f p0	{attrib.vertices[3*vidx0 + 0],
+							 attrib.vertices[3*vidx0 + 1],
+							 attrib.vertices[3*vidx0 + 2]};
+			const Vec3f p1	{attrib.vertices[3*vidx1 + 0],
+							 attrib.vertices[3*vidx1 + 1],
+							 attrib.vertices[3*vidx1 + 2]};
+			const Vec3f p2	{attrib.vertices[3*vidx2 + 0],
+							 attrib.vertices[3*vidx2 + 1],
+							 attrib.vertices[3*vidx2 + 2]};
+			const Vec3f p01{p1 - p0};
+			const Vec3f p02{p2 - p0};
+			const Vec3f n{normalize(cross(p01, p02))};
+
+			attrib.normals[3*vidx0 + 0] += n[0];
+			attrib.normals[3*vidx0 + 1] += n[1];
+			attrib.normals[3*vidx0 + 2] += n[2];
+			attrib.normals[3*vidx1 + 0] += n[0];
+			attrib.normals[3*vidx1 + 1] += n[1];
+			attrib.normals[3*vidx1 + 2] += n[2];
+			attrib.normals[3*vidx2 + 0] += n[0];
+			attrib.normals[3*vidx2 + 1] += n[1];
+			attrib.normals[3*vidx2 + 2] += n[2];
+		}
+
+		for(int vi = 0; vi < vnum; ++vi) {
+			const Vec3f n{normalize({attrib.normals[3*vi + 0],
+									 attrib.normals[3*vi + 1],
+									 attrib.normals[3*vi + 2]})};
+			attrib.normals[3*vi + 0] = n[0];
+			attrib.normals[3*vi + 1] = n[1];
+			attrib.normals[3*vi + 2] = n[2];
+
+			//std::cout << n << std::endl;
+		}
+
+		std::cout << "Normals generated." << std::endl;
+	}
+
 	// Verbose info printing
 	if(VERBOSE) {
 		// Print vertices
-		std::cout << attrib.vertices.size() << std::endl;
-		std::cout << attrib.normals.size() << std::endl;
-		std::cout << attrib.texcoords.size() << std::endl;
-		std::cout << shapes[0].mesh.indices.size() << std::endl;
-
-		int j = 0;
-		for(int i = 0; i < shapes[0].mesh.indices.size(); ++i) {
-			if(shapes[0].mesh.indices[i].vertex_index == 0) {
-				++j;
-			}
-		}
-		std::cout << j << std::endl;
+		std::cout << "vnum: " << (attrib.vertices.size() / 3) << std::endl;
+		std::cout << "nnum: " << (attrib.normals.size() / 3) << std::endl;
+		std::cout << "uvnum: " << (attrib.texcoords.size() / 2) << std::endl;
+		std::cout << "indexes: " << shapes[0].mesh.indices.size() << std::endl;
 	}
 }
 
@@ -84,38 +138,11 @@ void Core::setupEmbree() {
 								RTC_FORMAT_UINT3, triangles.data(),
 								0, 3*sizeof(uint), triangles.size() / 3);
 	rtcCommitGeometry(geom);
-    rtcAttachGeometry(hi_embree_scene, geom);
+	rtcAttachGeometry(hi_embree_scene, geom);
 	rtcReleaseGeometry(geom);
 	rtcCommitScene(hi_embree_scene);
 
 	rtcInitIntersectContext(&hi_embree_context);
-}
-
-void Core::bbox(const std::vector<float>& vertices, Vec3f& min, Vec3f& max) {
-	const std::vector<float>& vs = vertices; 
-	const uint nverts = vs.size() / 3;
-
-	Vec3f p{vs[0], vs[1], vs[2]}; 
-	min = p;
-	max = p;
-
-	for(int vi = 1; vi < nverts; ++vi) {
-		p = {
-			vs[3*vi + 0],
-			vs[3*vi + 1],
-			vs[3*vi + 2]
-		};
-		if(p[0] < min[0]) min[0] = p[0];
-		if(p[1] < min[1]) min[1] = p[1];
-		if(p[2] < min[2]) min[2] = p[2];
-		if(p[0] > max[0]) max[0] = p[0];
-		if(p[1] > max[1]) max[1] = p[1];
-		if(p[2] > max[2]) max[2] = p[2];
-	}
-
-	if(VERBOSE) {
-		std::cout << "bbox: " << min << ", " << max << std::endl;
-	}
 }
 
 void Core::releaseEmbree() {
@@ -145,9 +172,9 @@ void Core::generateNormalMapOnTriangle(const int ti) {
 
 	const Triangle t = Triangle::fromIndex(ti, low_shape, low_attrib);
 		
-    const Vec2i uv0i{tex_w * t.uv0[0], tex_h * t.uv0[1]};
-    const Vec2i uv1i{tex_w * t.uv1[0], tex_h * t.uv1[1]};
-    const Vec2i uv2i{tex_w * t.uv2[0], tex_h * t.uv2[1]};
+	const Vec2i uv0i{tex_w * t.uv0[0], tex_h * t.uv0[1]};
+	const Vec2i uv1i{tex_w * t.uv1[0], tex_h * t.uv1[1]};
+	const Vec2i uv2i{tex_w * t.uv2[0], tex_h * t.uv2[1]};
 
 	const Vec2f v01 = t.uv1 - t.uv0;
 	const Vec2f v02 = t.uv2 - t.uv0;
@@ -172,7 +199,7 @@ void Core::generateNormalMapOnTriangle(const int ti) {
 	// Iterate over texels
 	for(int j = min[1]; j <= max[1]; ++j) {
 		for(int i = min[0]; i <= max[0]; ++i) {
-
+			//std::cout << "texel " << i << " " << j << std::endl;
 			for(int us = 0; us < DEF_SPP_SIDE; ++us) {
 				for(int vs = 0; vs < DEF_SPP_SIDE; ++vs) {
 
@@ -252,9 +279,9 @@ Triangle Triangle::fromIndex(	const int ti,
 	const int vidx0 =	shape.mesh.indices[ti*3 + 0].vertex_index;
 	const int vidx1 =	shape.mesh.indices[ti*3 + 1].vertex_index;
 	const int vidx2 =	shape.mesh.indices[ti*3 + 2].vertex_index;
-	const int nidx0 =	shape.mesh.indices[ti*3 + 0].normal_index;
-	const int nidx1 =	shape.mesh.indices[ti*3 + 1].normal_index;
-	const int nidx2 =	shape.mesh.indices[ti*3 + 2].normal_index;
+	const int nidx0 = 	shape.mesh.indices[ti*3 + 0].normal_index;
+	const int nidx1 = 	shape.mesh.indices[ti*3 + 1].normal_index;
+	const int nidx2 = 	shape.mesh.indices[ti*3 + 2].normal_index;
 	const int idx0 =	shape.mesh.indices[ti*3 + 0].texcoord_index;
 	const int idx1 =	shape.mesh.indices[ti*3 + 1].texcoord_index;
 	const int idx2 =	shape.mesh.indices[ti*3 + 2].texcoord_index;
