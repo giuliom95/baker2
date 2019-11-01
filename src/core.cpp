@@ -231,9 +231,11 @@ void Core::generateNormalMapOnTriangle(const int ti) {
 						if(wrong_way || !hit) {
 							hit = shootRay(pos, -1*dir, n);
 							tn = toTangSpace(n, pos, dir, uv, t);
+
+							wrong_way = dot(tn, {0,0,1}) < 0;
 						}
 
-						if(hit) {
+						if(hit && !wrong_way) {
 
 							// Color texture
 							tex[3*(i + j*tex_w) + 0] += tn[0];

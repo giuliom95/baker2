@@ -70,7 +70,6 @@ MainWindow::MainWindow() :	QWidget(),
 	outFilePath = QString();
 	startBakingBtn->setEnabled(false);
 
-	canUpdate = true;
 }
 
 MainWindow::~MainWindow() {
@@ -80,6 +79,7 @@ void MainWindow::loadHighObj() {
 	const QString filepath = QFileDialog::getOpenFileName(this, "Open high poly OBJ", "./", "*.obj");
 	if(filepath.isEmpty()) return;
 
+	lockButtons();
 	highPolyFileLabel->setText("Loading...");
 	highPolyFileLabel->repaint();
 
@@ -91,6 +91,7 @@ void MainWindow::loadHighObj() {
 
 	highPolyLoaded = true;
 	checkBakingRequirements();
+	unlockButtons();
 }
 
 
@@ -98,6 +99,7 @@ void MainWindow::loadLowObj() {
 	const auto filepath = QFileDialog::getOpenFileName(this, "Open low poly OBJ", "./", "*.obj");
 	if(filepath.isEmpty()) return;
 
+	lockButtons();
 	lowPolyFileLabel->setText("Loading...");
 	lowPolyFileLabel->repaint();
 
@@ -111,6 +113,7 @@ void MainWindow::loadLowObj() {
 
 	lowPolyLoaded = true;
 	checkBakingRequirements();
+	unlockButtons();
 }
 
 void MainWindow::selectOutFile() {
@@ -132,14 +135,7 @@ void MainWindow::generateMap() {
 
 	// Fixes width so the label change doesn't change the button's size
 	startBakingBtn->setMinimumWidth(startBakingBtn->width());
-	lowPolyLoadBtn->setEnabled(false);
-	highPolyLoadBtn->setEnabled(false);
-	outFileChooseBtn->setEnabled(false);
-	lowPolyFileLabel->setEnabled(false);
-	highPolyFileLabel->setEnabled(false);
-	mapSizeCombo->setEnabled(false);
-	outFileFileLabel->setEnabled(false);
-	startBakingBtn->setEnabled(false);
+	lockButtons();
 	startBakingBtn->setText("Baking...");
 	startBakingBtn->repaint();
 
@@ -147,10 +143,9 @@ void MainWindow::generateMap() {
 
 	core.clearBuffers();
 	const auto trinum = core.getLowTrisNum();
+	
 	for (int ti = 0; ti < trinum; ++ti) {
-		//std::cout << "Triangle " << ti << std::endl;
 		core.generateNormalMapOnTriangle(ti);
-		//std::cout << "Triangle " << ti << " done" << std::endl;
 		if(ti % 100 == 0) {
 			progressBar->setValue(ti);
 		}
@@ -200,14 +195,7 @@ void MainWindow::generateMap() {
 
 	progressBar->setValue(progressBar->maximum());
 	startBakingBtn->setText("Start baking");
-	startBakingBtn->setEnabled(true);
-	lowPolyLoadBtn->setEnabled(true);
-	highPolyLoadBtn->setEnabled(true);
-	outFileChooseBtn->setEnabled(true);
-	lowPolyFileLabel->setEnabled(true);
-	highPolyFileLabel->setEnabled(true);
-	mapSizeCombo->setEnabled(true);
-	outFileFileLabel->setEnabled(true);
+	unlockButtons();
 }
 
 void MainWindow::checkBakingRequirements() {
@@ -217,3 +205,25 @@ void MainWindow::checkBakingRequirements() {
 		!outFilePath.isEmpty()
 	) startBakingBtn->setEnabled(true);
 }
+
+void MainWindow::lockButtons() {
+	lowPolyLoadBtn->setEnabled(false);
+	highPolyLoadBtn->setEnabled(false);
+	outFileChooseBtn->setEnabled(false);
+	lowPolyFileLabel->setEnabled(false);
+	highPolyFileLabel->setEnabled(false);
+	mapSizeCombo->setEnabled(false);
+	outFileFileLabel->setEnabled(false);
+	startBakingBtn->setEnabled(false);
+};
+
+void MainWindow::unlockButtons() {
+	startBakingBtn->setEnabled(true);
+	lowPolyLoadBtn->setEnabled(true);
+	highPolyLoadBtn->setEnabled(true);
+	outFileChooseBtn->setEnabled(true);
+	lowPolyFileLabel->setEnabled(true);
+	highPolyFileLabel->setEnabled(true);
+	mapSizeCombo->setEnabled(true);
+	outFileFileLabel->setEnabled(true);
+};

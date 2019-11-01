@@ -39,8 +39,9 @@ private:
 	bool lowPolyLoaded, highPolyLoaded;
 
 	void checkBakingRequirements();
+	void lockButtons();
+	void unlockButtons();
 
-	bool canUpdate;
 
 };
 
