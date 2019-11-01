@@ -81,7 +81,7 @@ void MainWindow::loadHighObj() {
 
 	lockButtons();
 	highPolyFileLabel->setText("Loading...");
-	highPolyFileLabel->repaint();
+    repaint();
 
 	core.loadHighObj(filepath.toUtf8().constData());
 
@@ -100,8 +100,8 @@ void MainWindow::loadLowObj() {
 	if(filepath.isEmpty()) return;
 
 	lockButtons();
-	lowPolyFileLabel->setText("Loading...");
-	lowPolyFileLabel->repaint();
+    lowPolyFileLabel->setText("Loading...");
+    repaint();
 
 	core.loadLowObj(filepath.toUtf8().constData());
 
@@ -136,8 +136,8 @@ void MainWindow::generateMap() {
 	// Fixes width so the label change doesn't change the button's size
 	startBakingBtn->setMinimumWidth(startBakingBtn->width());
 	lockButtons();
-	startBakingBtn->setText("Baking...");
-	startBakingBtn->repaint();
+    startBakingBtn->setText("Baking...");
+    repaint();
 
 	//emit startMapGenerationSig();
 
