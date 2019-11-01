@@ -16,7 +16,7 @@ public slots:
 	void loadLowObj();
 	void selectOutFile();
 	void setMapSize(QString);
-    void generateMap();
+	void generateMap();
 
 signals:
 	void startMapGenerationSig();
@@ -33,7 +33,7 @@ private:
 	QProgressBar*	progressBar;
 
 	Core 			core;
-    QThread*		workerThread;
+	QThread*		workerThread;
 
 	QString			outFilePath;
 	bool lowPolyLoaded, highPolyLoaded;

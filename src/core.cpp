@@ -34,7 +34,7 @@ void Core::loadObj(	std::string						inputfile,
 
 	std::string err, warn;
 
-	bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &err, inputfile.c_str());
+	bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, inputfile.c_str());
 
 	if(!ret)
 		std::cerr << err << std::endl;
